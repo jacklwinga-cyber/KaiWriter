@@ -32,6 +32,7 @@ import { BrandHeader } from '../components/editor/BrandHeader';
 import type { DocumentBranding } from '../lib/branding';
 import { getTemplateById, getTemplateContent } from '../data/templates';
 import { EditorPreferencesProvider, useEditorPreferences } from '../contexts/EditorPreferencesContext';
+import { SearchPalette, useSearchPalette } from '../components/ui/SearchPalette';
 import { KaiAssistModal } from '../components/ui/KaiAssistModal';
 import {
   applyTemplateAssistToEditor,
@@ -41,6 +42,11 @@ import {
 import { getPlainTextFromEditor } from '../lib/plainTextMap';
 import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName } from '../lib/documentStore';
 import editorStyles from '../components/editor/Editor.module.css';
+import {
+  clearRecoverySnapshot,
+  hasNewerRecovery,
+  loadRecoverySnapshot,
+} from '../lib/recoveryStore';
 
 const editorTheme = {
   paragraph: editorStyles.paragraph,
@@ -76,12 +82,18 @@ function EditorWorkspace({
   initialEditorState,
   initialName,
   initialBranding,
+  recoveryContent,
+  recoveryName,
+  onDismissRecovery,
 }: {
   documentId: string;
   templateId?: string;
   initialEditorState?: string;
   initialName: string;
   initialBranding?: DocumentBranding;
+  recoveryContent?: string | null;
+  recoveryName?: string;
+  onDismissRecovery?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState('Home');
   const [documentName, setDocumentName] = useState(initialName);
@@ -141,6 +153,9 @@ function EditorWorkspace({
           pageHeight={pageHeight}
           pagePadding={pagePadding}
           initialBranding={initialBranding}
+          recoveryContent={recoveryContent}
+          recoveryName={recoveryName}
+          onDismissRecovery={onDismissRecovery}
         />
         </EditorChromeProvider>
       </LexicalComposer>
@@ -153,6 +168,7 @@ function EditorLayout({
   pageSize, setPageSize, orientation, setOrientation, margins, setMargins,
   isLeftSidebarOpen, setIsLeftSidebarOpen, isRightSidebarOpen, setIsRightSidebarOpen,
   isFocusMode, setIsFocusMode, pageWidth, pageHeight, pagePadding, initialBranding,
+  recoveryContent, recoveryName, onDismissRecovery,
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -176,11 +192,15 @@ function EditorLayout({
   pageHeight: string;
   pagePadding: string;
   initialBranding?: DocumentBranding;
+  recoveryContent?: string | null;
+  recoveryName?: string;
+  onDismissRecovery?: () => void;
 }) {
   const [editor] = useLexicalComposerContext();
   const { isPro, accessToken } = useAuth();
   const { zoom, viewMode } = useEditorPreferences();
-  const { canUndo, canRedo, undo, redo, saveStatus } = useEditorChrome();
+  const { canUndo, canRedo, undo, redo, saveStatus, setSaveStatus, syncStatus } = useEditorChrome();
+  const [isSearchOpen, , closeSearch] = useSearchPalette();
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isBrandSettingsOpen, setIsBrandSettingsOpen] = useState(false);
@@ -267,6 +287,15 @@ function EditorLayout({
     window.print();
   };
 
+  const handleRestoreFromCrash = () => {
+    if (!recoveryContent) return;
+    const state = editor.parseEditorState(recoveryContent);
+    editor.setEditorState(state);
+    void persistDocument(recoveryContent);
+    setSaveStatus('recovered');
+    onDismissRecovery?.();
+  };
+
   const handleRestoreVersion = (content: string) => {
     const state = editor.parseEditorState(content);
     editor.setEditorState(state);
@@ -311,6 +340,7 @@ function EditorLayout({
         onUndo={undo}
         onRedo={redo}
         saveStatus={saveStatus}
+        syncStatus={syncStatus}
         isPro={isPro}
         onExportDocx={() => void handleExportDocx()}
         onExportTxt={handleExportTxt}
@@ -375,6 +405,13 @@ function EditorLayout({
             '--editor-zoom': String(zoom / 100),
           } as React.CSSProperties}
         >
+          {recoveryContent && (
+            <div className={editorStyles.recoveryBanner}>
+              <span>⚠️ Unsaved content recovered{recoveryName ? ` for “${recoveryName}”` : ' from a previous session'}.</span>
+              <button type="button" onClick={handleRestoreFromCrash}>Restore</button>
+              <button type="button" className={editorStyles.assistDismiss} onClick={onDismissRecovery}>Discard</button>
+            </div>
+          )}
           {showAssistBanner && placeholderCount >= 3 && (
             <div className={editorStyles.assistBanner}>
               <p>
@@ -395,6 +432,7 @@ function EditorLayout({
             <EditorCanvas />
           </div>
         </div>
+        <SearchPalette isOpen={isSearchOpen} onClose={closeSearch} />
       </MainLayout>
       <DocumentSavePlugin documentId={documentId} documentName={documentName} templateId={templateId} isPro={isPro} branding={branding} />
       <FindReplacePlugin />
@@ -446,6 +484,8 @@ export function EditorView() {
   const [initialEditorState, setInitialEditorState] = useState<string | undefined>();
   const [initialName, setInitialName] = useState('Untitled Document');
   const [initialBranding, setInitialBranding] = useState<DocumentBranding | undefined>();
+  const [recoveryContent, setRecoveryContent] = useState<string | null>(null);
+  const [recoveryName, setRecoveryName] = useState<string>('');
 
   useEffect(() => {
     if (!id) return;
@@ -479,12 +519,27 @@ export function EditorView() {
           });
         }
       }
+      // Check for a crash-recovery snapshot newer than the saved document
+      const lastSaved = saved?.lastModified ?? 0;
+      if (hasNewerRecovery(id, lastSaved)) {
+        const snap = loadRecoverySnapshot(id);
+        if (snap) {
+          setRecoveryContent(snap.content);
+          setRecoveryName(snap.name);
+        }
+      }
+
       setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [id, templateId, populateMode, isCloudAccount, user?.id]);
 
   if (!id) return <Navigate to="/app" replace />;
+
+  const handleDismissRecovery = () => {
+    if (id) clearRecoverySnapshot(id);
+    setRecoveryContent(null);
+  };
 
   if (loading) {
     return (
@@ -501,6 +556,9 @@ export function EditorView() {
       initialEditorState={initialEditorState}
       initialName={initialName}
       initialBranding={initialBranding}
+      recoveryContent={recoveryContent}
+      recoveryName={recoveryName}
+      onDismissRecovery={handleDismissRecovery}
     />
   );
 }

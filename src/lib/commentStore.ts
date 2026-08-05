@@ -1,5 +1,5 @@
-const DB_NAME = 'kaiwriter';
-const DB_VERSION = 3;
+import { openDb } from './idb';
+
 const STORE_NAME = 'comments';
 
 export interface DocumentComment {
@@ -11,28 +11,6 @@ export interface DocumentComment {
   createdAt: number;
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = () => {
-      const db = request.result;
-      if (!db.objectStoreNames.contains('documents')) {
-        db.createObjectStore('documents', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains('versions')) {
-        const store = db.createObjectStore('versions', { keyPath: 'id' });
-        store.createIndex('documentId', 'documentId', { unique: false });
-        store.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('documentId', 'documentId', { unique: false });
-      }
-    };
-  });
-}
 
 export async function listComments(documentId: string): Promise<DocumentComment[]> {
   const db = await openDb();

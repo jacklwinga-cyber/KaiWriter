@@ -8,15 +8,27 @@ import {
   COMMAND_PRIORITY_LOW,
 } from 'lexical';
 
-export type SaveStatus = 'saved' | 'saving' | 'unsaved';
+export type SaveStatus = 'saved' | 'saving' | 'unsaved' | 'error' | 'recovered';
+
+/**
+ * Status of the remote cloud-sync operation, separate from local IDB save.
+ * - 'synced'      — last push to Supabase succeeded
+ * - 'syncing'     — push in progress
+ * - 'sync_failed' — last push failed (network error, Supabase error)
+ * - 'offline'     — navigator.onLine is false
+ * - 'disabled'    — no signed-in user or Supabase not configured
+ */
+export type SyncStatus = 'synced' | 'syncing' | 'sync_failed' | 'offline' | 'disabled';
 
 interface EditorChromeContextValue {
   canUndo: boolean;
   canRedo: boolean;
   saveStatus: SaveStatus;
+  syncStatus: SyncStatus;
   undo: () => void;
   redo: () => void;
   setSaveStatus: (status: SaveStatus) => void;
+  setSyncStatus: (status: SyncStatus) => void;
 }
 
 const EditorChromeContext = createContext<EditorChromeContextValue | null>(null);
@@ -25,6 +37,7 @@ export function EditorChromeProvider({ children }: { children: React.ReactNode }
   const [canUndo, setCanUndo] = useState(false);
   const [canRedo, setCanRedo] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>('disabled');
   const [editorRef, setEditorRef] = useState<ReturnType<typeof useLexicalComposerContext>[0] | null>(null);
 
   const undo = useCallback(() => {
@@ -36,7 +49,7 @@ export function EditorChromeProvider({ children }: { children: React.ReactNode }
   }, [editorRef]);
 
   return (
-    <EditorChromeContext.Provider value={{ canUndo, canRedo, saveStatus, undo, redo, setSaveStatus }}>
+    <EditorChromeContext.Provider value={{ canUndo, canRedo, saveStatus, syncStatus, undo, redo, setSaveStatus, setSyncStatus }}>
       <EditorChromeRegistrar
         onEditor={(editor) => setEditorRef(editor)}
         onCanUndoChange={setCanUndo}

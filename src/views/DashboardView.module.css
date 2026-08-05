@@ -812,6 +812,21 @@
   filter: brightness(1.08);
 }
 
+.trashCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: #ff453a;
+  color: white;
+  font-size: 9px;
+  font-weight: 700;
+  margin-top: -2px;
+}
+
 .pinIcon {
   color: var(--accent-gold-light);
 }
@@ -830,4 +845,165 @@
   .searchBar {
     width: 160px;
   }
+}
+
+/* ── Folder navigation (P1-D) ── */
+
+.folderSection {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  padding: 4px 0;
+  border-top: 1px solid var(--dash-border);
+}
+
+.folderSectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 6px 10px 4px;
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--dash-text-muted);
+}
+
+.addFolderBtn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--dash-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 4px;
+  transition: color 0.15s, background 0.15s;
+}
+.addFolderBtn:hover {
+  color: var(--dash-text);
+  background: var(--dash-hover);
+}
+
+.folderList {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 1px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.folderItem {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 4px;
+  cursor: pointer;
+  border-radius: 8px;
+  margin: 0 6px;
+  transition: background 0.12s;
+  font-size: 9px;
+  color: var(--dash-text-muted);
+  text-align: center;
+}
+.folderItem:hover {
+  background: var(--dash-hover);
+  color: var(--dash-text);
+}
+.folderItemActive {
+  background: var(--dash-active);
+  color: var(--dash-text);
+}
+
+.folderItemName {
+  width: 72px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.folderItemCount {
+  font-size: 9px;
+  color: var(--dash-text-muted);
+  background: rgba(255,255,255,0.08);
+  border-radius: 8px;
+  padding: 0 5px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.folderActions {
+  display: none;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  gap: 2px;
+}
+.folderItem:hover .folderActions {
+  display: flex;
+}
+
+.folderActionBtn {
+  background: rgba(0,0,0,0.4);
+  border: none;
+  cursor: pointer;
+  color: var(--dash-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  border-radius: 3px;
+  transition: color 0.12s;
+}
+.folderActionBtn:hover { color: var(--dash-text); }
+
+/* Inline rename input inside folder item */
+.folderRenameInput {
+  background: rgba(255,255,255,0.12);
+  border: 1px solid rgba(255,255,255,0.25);
+  border-radius: 4px;
+  color: var(--dash-text);
+  font-size: 11px;
+  padding: 2px 6px;
+  width: 100%;
+  outline: none;
+  text-align: center;
+}
+.folderRenameInput:focus {
+  border-color: rgba(255,255,255,0.5);
+}
+
+/* "New folder" inline input */
+.newFolderRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+}
+.newFolderInput {
+  flex: 1;
+  background: rgba(255,255,255,0.1);
+  border: 1px solid rgba(255,255,255,0.2);
+  border-radius: 6px;
+  color: var(--dash-text);
+  font-size: 11px;
+  padding: 4px 8px;
+  outline: none;
+}
+.newFolderInput:focus {
+  border-color: rgba(255,255,255,0.45);
+}
+
+/* Folder view content area header */
+.folderViewHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
 }

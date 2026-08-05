@@ -1,8 +1,8 @@
-const DB_NAME = 'kaiwriter';
-const DB_VERSION = 3;
+import { openDb } from './idb';
+
 const STORE_NAME = 'versions';
 const MAX_VERSIONS = 50;
-const AUTO_INTERVAL_MS = 15 * 60 * 1000;
+const AUTO_INTERVAL_MS = 5 * 60 * 1000; // 5 min — was 15 min, now tighter safety net
 
 export interface DocumentVersion {
   id: string;
@@ -13,25 +13,6 @@ export interface DocumentVersion {
   source: 'auto' | 'manual';
 }
 
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, DB_VERSION);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = request.result;
-      const oldVersion = event.oldVersion;
-      if (oldVersion < 1 && !db.objectStoreNames.contains('documents')) {
-        db.createObjectStore('documents', { keyPath: 'id' });
-      }
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-        store.createIndex('documentId', 'documentId', { unique: false });
-        store.createIndex('createdAt', 'createdAt', { unique: false });
-      }
-    };
-  });
-}
 
 export async function listVersions(documentId: string): Promise<DocumentVersion[]> {
   const db = await openDb();

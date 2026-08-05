@@ -140,6 +140,36 @@
   flex-shrink: 0;
 }
 
+.recoveryBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #fff;
+  background: #b45309;
+  border-bottom: 1px solid rgba(0,0,0,0.2);
+  z-index: 10;
+  position: relative;
+}
+
+.recoveryBanner button {
+  padding: 4px 12px;
+  border-radius: 6px;
+  border: 1px solid rgba(255,255,255,0.4);
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.recoveryBanner button:hover {
+  background: rgba(255,255,255,0.25);
+}
+
 .assistBanner {
   position: sticky;
   top: 0;

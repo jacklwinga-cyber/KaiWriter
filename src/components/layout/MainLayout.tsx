@@ -6,7 +6,7 @@ import { SettingsModal, ProfileModal } from '../ui/Modals';
 import { LegacyPinProBanner } from '../ui/LegacyPinProBanner';
 import { useAuth } from '../../contexts/AuthProvider';
 import { createDocumentId } from '../../lib/ids';
-import type { SaveStatus } from '../../contexts/EditorChromeContext';
+import type { SaveStatus, SyncStatus } from '../../contexts/EditorChromeContext';
 
 const RIBBON_TABS = ['File', 'Home', 'Insert', 'Layout', 'Review', 'View'] as const;
 
@@ -25,6 +25,7 @@ interface MainLayoutProps {
   onUndo?: () => void;
   onRedo?: () => void;
   saveStatus?: SaveStatus;
+  syncStatus?: SyncStatus;
   isPro?: boolean;
   onExportDocx?: () => void;
   onExportTxt?: () => void;
@@ -48,6 +49,7 @@ export function MainLayout({
   onUndo,
   onRedo,
   saveStatus = 'saved',
+  syncStatus = 'disabled' as SyncStatus,
   isPro = false,
   onExportDocx,
   onExportTxt,
@@ -63,7 +65,12 @@ export function MainLayout({
   const [isFileMenuOpen, setIsFileMenuOpen] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
-  const saveLabel = saveStatus === 'saving' ? 'Saving…' : saveStatus === 'unsaved' ? 'Unsaved' : 'Saved';
+  const saveLabel =
+    saveStatus === 'saving'   ? 'Saving…' :
+    saveStatus === 'unsaved'  ? 'Unsaved' :
+    saveStatus === 'error'    ? 'Save failed' :
+    saveStatus === 'recovered' ? 'Recovered' :
+    'Saved';
 
   const openAccount = (view: 'main' | 'signin' = 'main') => {
     setProfileDefaultView(view);
@@ -109,7 +116,27 @@ export function MainLayout({
             onChange={(e) => onNameChange?.(e.target.value)}
             style={{ background: 'transparent', border: 'none', color: 'white', fontSize: '14px', textAlign: 'center', outline: 'none', minWidth: '200px' }}
           />
-          <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.7)' }}>• {saveLabel}</span>
+          <span style={{
+                fontSize: '11px',
+                color: saveStatus === 'error' ? '#fca5a5' :
+                       saveStatus === 'recovered' ? '#86efac' :
+                       'rgba(255,255,255,0.7)',
+              }}>• {saveLabel}</span>
+          {syncStatus !== 'disabled' && (
+            <span style={{
+              fontSize: '11px',
+              marginLeft: '6px',
+              color: syncStatus === 'sync_failed' ? '#fca5a5' :
+                     syncStatus === 'synced'      ? 'rgba(255,255,255,0.5)' :
+                     syncStatus === 'syncing'     ? 'rgba(255,255,255,0.7)' :
+                                                    'rgba(255,255,255,0.4)',
+            }}>
+              {syncStatus === 'syncing'     ? '↑ Syncing…' :
+               syncStatus === 'synced'      ? '✓ Synced' :
+               syncStatus === 'sync_failed' ? '⚠ Sync failed' :
+               syncStatus === 'offline'     ? '⚡ Offline' : null}
+            </span>
+          )}
         </div>
 
         <div className={styles.titleActions} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
