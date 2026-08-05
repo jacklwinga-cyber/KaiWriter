@@ -1,0 +1,256 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  background: var(--brand-gradient-soft);
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+}
+
+.shellPageScroll {
+  min-height: 100vh;
+  height: auto;
+  flex: none;
+}
+
+.header {
+  display: flex;
+  justify-content: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-color);
+  background: color-mix(in srgb, var(--bg-surface) 92%, transparent);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.headerInner {
+  width: 100%;
+  max-width: 1140px;
+  padding: 0 clamp(20px, 4vw, 48px);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.hubBrand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.hubBrand span:first-of-type {
+  font-weight: 700;
+  font-size: 1.15rem;
+  background: var(--brand-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.hubDot {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--accent-gold-muted);
+  -webkit-text-fill-color: var(--text-muted);
+}
+
+.logo {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
+}
+
+.headerCenter {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+
+.switcher {
+  position: relative;
+}
+
+.switcherBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.switcherBtn:hover {
+  border-color: var(--brand-primary-light);
+  box-shadow: var(--shadow-glow);
+}
+
+.switcherLabel {
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevronOpen {
+  transform: rotate(180deg);
+}
+
+.switcherMenu {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  min-width: 280px;
+  padding: 8px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-dropdown);
+  z-index: 200;
+}
+
+.switcherItem {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  color: inherit;
+  transition: background 0.12s ease;
+}
+
+.switcherItem:hover:not(.switcherItemSoon) {
+  background: var(--bg-hover);
+}
+
+.switcherItemActive {
+  background: var(--accent-light);
+}
+
+.switcherItemSoon {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.switcherIcon {
+  color: var(--brand-primary);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.switcherItemText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.switcherItemText strong {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.switcherItemText small {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.headerNav {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.navLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.navLink:hover {
+  color: var(--brand-primary);
+}
+
+.navCta {
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  background: var(--brand-gradient);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 4px 14px rgb(107 63 160 / 0.35);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.navCta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgb(107 63 160 / 0.45);
+}
+
+.main {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.mainPageScroll {
+  flex: none;
+  overflow: visible;
+  min-height: auto;
+}
+
+@media (max-width: 720px) {
+  .headerInner {
+    flex-wrap: wrap;
+    padding: 12px 16px;
+  }
+
+  .headerCenter {
+    order: 3;
+    width: 100%;
+    justify-content: stretch;
+  }
+
+  .switcher {
+    width: 100%;
+  }
+
+  .switcherBtn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .hubDot {
+    display: none;
+  }
+}

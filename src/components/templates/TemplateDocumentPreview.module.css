@@ -1,0 +1,239 @@
+.page {
+  width: 100%;
+  height: 100%;
+  background: #fff;
+  color: #1a1a1a;
+  overflow: hidden;
+  position: relative;
+  container-type: inline-size;
+  container-name: template-preview;
+}
+
+.scaler {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.sheet {
+  width: var(--preview-sheet-width, 100%);
+  min-height: var(--preview-sheet-height, 100%);
+  padding: var(--preview-sheet-pad, 6cqi 5.5cqi);
+  box-sizing: border-box;
+  transform: none;
+  background: #fff;
+  font-family: 'Times New Roman', Times, serif;
+  font-size: var(--preview-font-size, 3.85cqi);
+  line-height: 1.42;
+  color: #111;
+  pointer-events: none;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: geometricPrecision;
+}
+
+/* Gallery thumb — native size via container queries (no transform scale = sharp text) */
+.thumb .sheet {
+  --preview-sheet-width: 100%;
+  --preview-sheet-height: 100%;
+  --preview-sheet-pad: 6.5cqi 5.8cqi;
+  --preview-font-size: max(5.5px, 3.85cqi);
+}
+
+.thumb .content :global(h1) {
+  font-size: 1.72em;
+  font-weight: 700;
+  margin: 0 0 0.32em;
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+}
+
+.thumb .content :global(h2) {
+  font-size: 1.28em;
+  font-weight: 700;
+  margin: 0.72em 0 0.28em;
+  line-height: 1.18;
+}
+
+.thumb .content :global(h3) {
+  font-size: 1.1em;
+  font-weight: 700;
+  margin: 0.55em 0 0.22em;
+}
+
+.thumb .content :global(p) {
+  margin: 0 0 0.38em;
+}
+
+.thumb .content :global(ul),
+.thumb .content :global(ol) {
+  margin: 0.15em 0 0.45em 1em;
+}
+
+.thumb .content :global(li) {
+  margin-bottom: 0.15em;
+}
+
+.detail.page {
+  height: 100%;
+  overflow: auto;
+  background: #ececef;
+}
+
+.detail .sheet {
+  --preview-sheet-width: 100%;
+  --preview-sheet-height: auto;
+  --preview-sheet-pad: 28px 24px;
+  --preview-font-size: 11px;
+  max-width: 320px;
+  margin: 0 auto;
+  box-shadow: 0 8px 32px rgb(0 0 0 / 0.35);
+  border-radius: 4px;
+}
+
+.full .sheet {
+  --preview-sheet-width: 100%;
+  --preview-sheet-height: auto;
+  --preview-sheet-pad: 48px 56px;
+  --preview-font-size: 12px;
+  max-width: 680px;
+  margin: 0 auto;
+  box-shadow: 0 16px 48px rgb(0 0 0 / 0.4);
+  border-radius: 6px;
+}
+
+.content :global(h1) {
+  font-size: 1.55em;
+  font-weight: 700;
+  margin: 0 0 0.35em;
+  line-height: 1.15;
+}
+
+.content :global(h2) {
+  font-size: 1.15em;
+  font-weight: 700;
+  margin: 0.85em 0 0.35em;
+  line-height: 1.2;
+}
+
+.content :global(h3) {
+  font-size: 1em;
+  font-weight: 700;
+  margin: 0.65em 0 0.25em;
+}
+
+.content :global(p) {
+  margin: 0 0 0.45em;
+  white-space: pre-wrap;
+}
+
+.content :global(ul),
+.content :global(ol) {
+  margin: 0.2em 0 0.55em 1.1em;
+  padding: 0;
+}
+
+.content :global(li) {
+  margin-bottom: 0.2em;
+}
+
+.content :global(strong) {
+  font-weight: 700;
+}
+
+/* Category accents — makes layouts visually distinct at a glance */
+.business .sheet {
+  font-family: Calibri, 'Segoe UI', sans-serif;
+  border-top: 4px solid #6b3fa0;
+}
+
+.finance .sheet {
+  font-family: Calibri, 'Segoe UI', sans-serif;
+  border-top: 4px solid #0d7a4a;
+}
+
+.finance .content :global(h1) {
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  font-size: 1.35em;
+}
+
+.marketing .sheet {
+  font-family: Inter, Calibri, sans-serif;
+  border-top: 4px solid #2563eb;
+}
+
+.marketing .content :global(h1) {
+  font-size: 1.65em;
+  color: #1e3a8a;
+}
+
+.academic .sheet {
+  font-family: 'Times New Roman', Times, serif;
+}
+
+.legal .sheet {
+  font-family: 'Times New Roman', Times, serif;
+  line-height: 1.55;
+}
+
+.personal .sheet {
+  font-family: Georgia, 'Times New Roman', serif;
+  border-top: 4px solid #b45309;
+}
+
+.creative .sheet {
+  font-family: Georgia, serif;
+  text-align: center;
+}
+
+.creative .content :global(h1),
+.creative .content :global(h2) {
+  text-align: center;
+}
+
+.thumb.business .sheet,
+.thumb.finance .sheet,
+.thumb.marketing .sheet,
+.thumb.personal .sheet {
+  border-top-width: 2px;
+}
+
+.thumb.productivity .sheet {
+  border-left-width: 2px;
+}
+
+.sampleLabel {
+  position: absolute;
+  bottom: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.92);
+  color: #636366;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  z-index: 1;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.12);
+}
+
+.fadeBottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 28%;
+  background: linear-gradient(to bottom, transparent 0%, rgb(255 255 255 / 0.88) 85%);
+  pointer-events: none;
+}
+
+.thumb .fadeBottom {
+  height: 32%;
+}

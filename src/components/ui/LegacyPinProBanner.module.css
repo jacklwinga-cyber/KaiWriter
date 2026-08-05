@@ -1,0 +1,81 @@
+.banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 16px;
+  background: linear-gradient(90deg, rgb(107 63 160 / 0.22), rgb(180 140 220 / 0.12));
+  border-bottom: 1px solid rgb(255 255 255 / 0.12);
+  color: #f5f5f7;
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: #d4b8ff;
+}
+
+.content {
+  flex: 1;
+  min-width: 0;
+}
+
+.title {
+  display: block;
+  font-size: 0.9rem;
+  margin-bottom: 4px;
+}
+
+.body {
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: #c8c8cc;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.primaryBtn {
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background: var(--brand-gradient, linear-gradient(135deg, #6b3fa0, #8b5cf6));
+  color: white;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dismissBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.08);
+  color: #98989d;
+  cursor: pointer;
+}
+
+.dismissBtn:hover {
+  background: rgb(255 255 255 / 0.14);
+  color: #f5f5f7;
+}
+
+@media (max-width: 640px) {
+  .banner {
+    flex-wrap: wrap;
+  }
+
+  .actions {
+    width: 100%;
+    justify-content: flex-end;
+  }
+}

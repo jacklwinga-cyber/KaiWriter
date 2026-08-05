@@ -1,0 +1,76 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgb(0 0 0 / 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.dialog {
+  width: min(760px, 100%);
+  max-height: min(92vh, 900px);
+  display: flex;
+  flex-direction: column;
+  border-radius: 16px;
+  background: #1c1c1e;
+  border: 1px solid rgb(255 255 255 / 0.1);
+  box-shadow: 0 24px 64px rgb(0 0 0 / 0.5);
+  overflow: hidden;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgb(255 255 255 / 0.08);
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-primary-light);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.2rem;
+  color: #f5f5f7;
+}
+
+.closeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #98989d;
+  cursor: pointer;
+}
+
+.closeBtn:hover {
+  background: rgb(255 255 255 / 0.08);
+  color: #f5f5f7;
+}
+
+.body {
+  flex: 1;
+  overflow: auto;
+  padding: 24px;
+  background: #2c2c2e;
+}
+
+.body > div {
+  min-height: 100%;
+}

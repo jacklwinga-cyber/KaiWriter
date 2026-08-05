@@ -1,0 +1,242 @@
+.editorContainer {
+  width: var(--page-width);
+  min-height: var(--page-min-height);
+  background-color: var(--bg-paper);
+  box-shadow: var(--shadow-paper);
+  margin: 0 auto;
+  position: relative;
+  outline: none;
+}
+
+.editorInner {
+  padding: var(--page-padding, 96px); /* Dynamic margins */
+  min-height: inherit;
+  position: relative;
+  outline: none;
+}
+
+.editorInput {
+  min-height: calc(var(--page-min-height) - 192px);
+  outline: none;
+  font-size: 16px;
+  line-height: 1.5;
+  tab-size: 1;
+}
+
+.placeholder {
+  color: var(--text-muted);
+  position: absolute;
+  top: 96px;
+  left: 96px;
+  pointer-events: none;
+  font-size: 16px;
+}
+
+/* Lexical Theme Styles */
+.paragraph {
+  margin: 0 0 8px 0;
+}
+
+.textBold {
+  font-weight: bold;
+}
+
+.textItalic {
+  font-style: italic;
+}
+
+.textUnderline {
+  text-decoration: underline;
+}
+
+.textStrikethrough {
+  text-decoration: line-through;
+}
+
+/* Table Styles */
+.table {
+  border-collapse: collapse;
+  border-spacing: 0;
+  width: 100%;
+  margin: 16px 0;
+  border: 1px solid var(--text-muted);
+  table-layout: fixed;
+}
+
+.tableCell {
+  border: 1px solid var(--text-muted);
+  padding: 8px 12px;
+  min-width: 50px;
+  vertical-align: top;
+  position: relative;
+  outline: none;
+}
+
+.tableCellHeader {
+  background-color: var(--bg-hover);
+  font-weight: 600;
+  text-align: left;
+  border: 1px solid var(--text-muted);
+  padding: 8px 12px;
+  min-width: 50px;
+  vertical-align: top;
+  position: relative;
+  outline: none;
+}
+
+.tableRow {
+  /* optional row styling */
+}
+
+/* Optional: resize handle styles if we add resizing later */
+.tableCell.resizing,
+.tableCellHeader.resizing {
+  background-color: var(--accent-light);
+}
+
+/* Image Styles */
+.image {
+  display: inline-block;
+  margin: 8px 0;
+}
+
+.ul {
+  padding-left: 24px;
+  margin: 0 0 8px 0;
+  list-style-type: disc;
+}
+
+.ol {
+  padding-left: 24px;
+  margin: 0 0 8px 0;
+  list-style-type: decimal;
+}
+
+.listitem {
+  margin: 0 0 4px 0;
+}
+
+.nestedListItem {
+  list-style-type: circle;
+}
+
+.listItemUnchecked {
+  list-style-type: circle;
+}
+
+@media print {
+  .editorContainer {
+    box-shadow: none;
+    margin: 0;
+    padding: 0;
+    width: auto;
+    min-height: auto;
+    background-color: white;
+  }
+}
+
+.pageStack {
+  width: var(--page-width);
+  flex-shrink: 0;
+}
+
+.assistBanner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  width: min(680px, 100%);
+  margin: 0 auto 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgb(107 63 160 / 0.18);
+  border: 1px solid rgb(107 63 160 / 0.35);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.assistBanner p {
+  margin: 0;
+  flex: 1;
+  min-width: 200px;
+}
+
+.assistBanner button {
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: none;
+  background: var(--brand-gradient);
+  color: white;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.assistDismiss {
+  background: transparent !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-secondary) !important;
+}
+
+.editorScrollInner {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  transform: scale(var(--editor-zoom, 1));
+  transform-origin: top center;
+  transition: transform 0.15s ease;
+}
+
+.editorScrollInnerWeb {
+  width: min(920px, 100%);
+}
+
+.editorScrollInnerRead :global(.editorInput) {
+  font-size: 18px;
+  line-height: 1.65;
+}
+
+.pageStackWeb {
+  width: 100% !important;
+  max-width: 920px;
+}
+
+.pageStackWeb :global(.editorContainer) {
+  width: 100%;
+  box-shadow: none;
+  border: 1px solid var(--border-color);
+}
+
+.brandHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px var(--page-padding, 96px) 12px;
+  background: var(--bg-paper);
+  border-bottom: 2px solid var(--brand-primary);
+  box-shadow: var(--shadow-paper);
+}
+
+.brandLogo {
+  max-height: 40px;
+  max-width: 120px;
+  object-fit: contain;
+}
+
+.brandMeta {
+  min-width: 0;
+}
+
+.brandCompany {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.brandTagline {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}

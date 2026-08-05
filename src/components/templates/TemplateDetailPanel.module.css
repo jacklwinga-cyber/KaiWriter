@@ -1,0 +1,143 @@
+.panel {
+  position: sticky;
+  top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.previewFrame {
+  position: relative;
+  aspect-ratio: 8.5 / 11;
+  max-height: min(52vh, 520px);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #ececef;
+  box-shadow: 0 12px 40px rgb(0 0 0 / 0.35);
+}
+
+.expandBtn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 8px;
+  background: rgb(20 12 32 / 0.78);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  z-index: 2;
+  backdrop-filter: blur(4px);
+}
+
+.expandBtn:hover {
+  background: rgb(20 12 32 / 0.92);
+}
+
+.meta {
+  padding: 4px 2px 0;
+}
+
+.metaTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--brand-primary-light);
+}
+
+.title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.proBadge {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--brand-gradient);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.description {
+  margin: 0 0 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--dash-text-muted);
+}
+
+.previewNote {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: rgb(255 255 255 / 0.06);
+  border: 1px solid rgb(255 255 255 / 0.08);
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--dash-text-muted);
+}
+
+.featuresBlock {
+  margin-bottom: 12px;
+}
+
+.featuresLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--brand-primary-light);
+  margin: 0 0 6px;
+}
+
+.features {
+  margin: 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--dash-text-muted);
+}
+
+.features li {
+  margin-bottom: 4px;
+}
+
+.upgradeHint {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid rgb(212 168 83 / 0.35);
+  border-radius: 10px;
+  background: rgb(212 168 83 / 0.08);
+  color: var(--accent-gold-light);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.upgradeHint:hover {
+  background: rgb(212 168 83 / 0.14);
+}

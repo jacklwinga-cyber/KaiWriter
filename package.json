@@ -1,0 +1,53 @@
+{
+  "name": "kaiwriter",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/ensure-dev-port.mjs && vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview",
+    "setup:stripe": "node scripts/setup-stripe-test.mjs",
+    "desktop:dev": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri dev",
+    "desktop:build": "PATH=\"$HOME/.cargo/bin:$PATH\" tauri build",
+    "deploy:checklist": "node scripts/print-kainoter-setup.mjs",
+    "preview:import": "bash scripts/import-template-preview.sh"
+  },
+  "dependencies": {
+    "@lexical/history": "^0.45.0",
+    "@lexical/link": "^0.45.0",
+    "@lexical/list": "^0.45.0",
+    "@lexical/react": "^0.45.0",
+    "@lexical/rich-text": "^0.45.0",
+    "@lexical/selection": "^0.45.0",
+    "@lexical/table": "^0.45.0",
+    "@lexical/utils": "^0.45.0",
+    "@supabase/supabase-js": "^2.108.1",
+    "@tauri-apps/api": "^2.11.0",
+    "clsx": "^2.1.1",
+    "docx": "^9.7.1",
+    "lexical": "^0.45.0",
+    "lucide-react": "^1.17.0",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "react-router-dom": "^7.17.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^24.12.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "dotenv": "^17.4.2",
+    "eslint": "^10.3.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.2",
+    "globals": "^17.6.0",
+    "stripe": "^22.2.1",
+    "typescript": "~6.0.2",
+    "typescript-eslint": "^8.59.2",
+    "vite": "^8.0.12"
+  }
+}

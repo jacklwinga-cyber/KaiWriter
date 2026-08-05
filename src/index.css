@@ -1,0 +1,156 @@
+:root {
+  /* Brand — rich violet with warm undertones */
+  --brand-primary: #6b3fa0;
+  --brand-primary-deep: #4a2875;
+  --brand-primary-light: #9b6fd4;
+  --brand-gradient: linear-gradient(135deg, #4a2875 0%, #6b3fa0 45%, #8b5fd4 100%);
+  --brand-gradient-soft: linear-gradient(160deg, #f3ebfa 0%, #faf7f2 100%);
+
+  --accent-gold: #c9922e;
+  --accent-gold-light: #e8b84a;
+  --accent-gold-muted: rgba(201, 146, 46, 0.14);
+  --accent-success: #1f9b6c;
+  --accent-success-muted: rgba(31, 155, 108, 0.12);
+  --accent-error: #c44a2a;
+
+  /* Surfaces — warm linen, not cold grey */
+  --bg-primary: #f5f1ea;
+  --bg-surface: #fffcf8;
+  --bg-paper: #ffffff;
+  --bg-hover: #efe9e0;
+  --bg-active: #e5ddd2;
+
+  --text-primary: #2a2234;
+  --text-secondary: #5a5168;
+  --text-muted: #8f8499;
+
+  --border-color: #e3dcd2;
+  --border-light: #f0ebe3;
+
+  --accent-primary: var(--brand-primary);
+  --accent-hover: var(--brand-primary-deep);
+  --accent-light: #f0e8f8;
+
+  /* Shadows — soft, warm */
+  --shadow-sm: 0 1px 2px rgb(42 34 52 / 0.04);
+  --shadow-md: 0 4px 14px rgb(42 34 52 / 0.08);
+  --shadow-paper: 0 12px 32px rgb(74 40 117 / 0.12), 0 4px 8px rgb(42 34 52 / 0.06);
+  --shadow-dropdown: 0 16px 40px rgb(42 34 52 / 0.14);
+  --shadow-glow: 0 0 0 1px rgb(107 63 160 / 0.08), 0 8px 24px rgb(107 63 160 / 0.15);
+
+  --font-sans: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-serif: 'Georgia', Cambria, 'Times New Roman', Times, serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Consolas, Monaco, monospace;
+
+  --ribbon-height: 120px;
+  --status-bar-height: 32px;
+  --sidebar-width: 280px;
+  --page-width: 816px;
+  --page-min-height: 1056px;
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+}
+
+.dark-theme {
+  color-scheme: dark;
+  --brand-gradient: linear-gradient(135deg, #2d1a45 0%, #4a2875 50%, #6b3fa0 100%);
+  --brand-gradient-soft: linear-gradient(160deg, #1e1528 0%, #16101f 100%);
+
+  --bg-primary: #140f1c;
+  --bg-surface: #1f1729;
+  --bg-paper: #2a2038;
+  --bg-hover: #322648;
+  --bg-active: #3d3054;
+
+  --text-primary: #f5f0fa;
+  --text-secondary: #c4b8d4;
+  --text-muted: #8a7d9a;
+
+  --border-color: #3d3054;
+  --border-light: #2a2038;
+
+  --accent-primary: #a87fe0;
+  --accent-hover: #c4a8f0;
+  --accent-light: rgb(139 92 246 / 0.14);
+
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-md: 0 4px 14px rgb(0 0 0 / 0.4);
+  --shadow-paper: 0 12px 32px rgb(0 0 0 / 0.45);
+  --shadow-dropdown: 0 16px 40px rgb(0 0 0 / 0.5);
+  --shadow-glow: 0 0 0 1px rgb(168 127 224 / 0.2), 0 8px 24px rgb(107 63 160 / 0.25);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  transition: background-color 0.25s ease, color 0.25s ease;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Marketing / hub landing pages scroll like a normal site */
+html.kai-marketing-scroll,
+html.kai-marketing-scroll body,
+html.kai-marketing-scroll #root {
+  height: auto;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+button {
+  font-family: inherit;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+
+input, textarea, select {
+  font-family: inherit;
+}
+
+a {
+  color: var(--accent-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+::selection {
+  background: rgb(107 63 160 / 0.22);
+  color: var(--text-primary);
+}
+
+.flex { display: flex; }
+.flex-col { display: flex; flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-center { justify-content: center; }
+.flex-1 { flex: 1; }
+.w-full { width: 100%; }
+.h-full { height: 100%; }
+.relative { position: relative; }
+.absolute { position: absolute; }
+.overflow-hidden { overflow: hidden; }
+.overflow-auto { overflow: auto; }
