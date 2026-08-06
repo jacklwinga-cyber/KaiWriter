@@ -627,3 +627,26 @@
   justify-content: center;
   padding: 16px 24px;
 }
+
+/* ── Document outline / navigation (P2-A) ── */
+
+/* Active heading in the outline panel */
+.headingItemActive {
+  background-color: var(--bg-hover);
+  border-left: 2px solid var(--brand-primary);
+}
+
+/* Outline empty state */
+.outlineEmpty {
+  padding: 24px 8px;
+  text-align: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.outlineEmptyIcon {
+  font-size: 24px;
+  margin-bottom: 8px;
+  opacity: 0.4;
+}
