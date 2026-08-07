@@ -379,8 +379,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return trialDaysFromPeriodEnd(subscriptionPeriodEnd, user?.subscriptionStatus ?? '');
   }, [isTrialing, subscriptionPeriodEnd, user?.subscriptionStatus]);
 
-  const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
-  const isPro = isAdminMode || user?.plan === 'pro' || user?.plan === 'teams';
+  // Payment temporarily removed — all features unlocked
+  // const isAdminMode = import.meta.env.VITE_ADMIN_MODE === 'true';
+  const isPro = true; // re-enable: isAdminMode || user?.plan === 'pro' || user?.plan === 'teams'
   const isGuest = !user;
   const isCloudAccount = user?.accountType === 'cloud';
 
