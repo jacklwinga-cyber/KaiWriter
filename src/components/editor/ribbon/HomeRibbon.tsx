@@ -1,5 +1,5 @@
 /**
- * HomeRibbon.tsx — P3-A-i typography completion
+ * HomeRibbon.tsx — P3-A-i/P3-B typography + paragraph formatting
  *
  * Added vs original:
  *  • Text colour picker (20 swatches + custom input)
@@ -8,6 +8,8 @@
  *  • Alignment active-state tracking (correct highlight on current paragraph)
  *  • Line-spacing dropdown: 1.0 / 1.15 / 1.5 / 2.0
  *  • Expanded styles gallery: Normal / H1–H4 / Quote / Checklist
+ * P3-B additions:
+ *  • Paragraph format popover (indent left/right, first-line/hanging, space before/after)
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -45,6 +47,14 @@ import {
   ChevronDown, ChevronUp, Baseline, Highlighter, Brush,
 } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
+import {
+  buildParagraphStyle,
+  parseParagraphStyle,
+  DEFAULT_PARAGRAPH_FORMAT,
+  type ParagraphFormat,
+} from '../../../lib/paragraphFormat';
+import { ParagraphFormatPopover } from './ParagraphFormatPopover';
+import { PilcrowSquare } from 'lucide-react';
 
 // ── Colour presets ─────────────────────────────────────────────────────────
 
@@ -166,9 +176,10 @@ export function HomeRibbon({ onOpenStyles }: HomeRibbonProps) {
   const [fontFamily,      setFontFamily]      = useState('Inter, sans-serif');
   const [fontSize,        setFontSize]        = useState('14');
   const [lineHeight,      setLineHeight]      = useState('1.5');
+  const [paragraphFmt,    setParagraphFmt]    = useState<ParagraphFormat>(DEFAULT_PARAGRAPH_FORMAT);
   const [textColor,       setTextColor]       = useState('#000000');
   const [highlightColor,  setHighlightColor]  = useState('');
-  const [openPicker,      setOpenPicker]      = useState<'text' | 'highlight' | 'spacing' | null>(null);
+  const [openPicker,      setOpenPicker]      = useState<'text' | 'highlight' | 'spacing' | 'paragraph' | null>(null);
 
   const fontInputRef   = useRef<HTMLInputElement>(null);
   const pickerRef      = useRef<HTMLDivElement>(null);
@@ -212,6 +223,7 @@ export function HomeRibbon({ onOpenStyles }: HomeRibbonProps) {
     // Alignment — read from element node format
     if ($isElementNode(element)) {
       setActiveAlignment(element.getFormatType() || 'left');
+      setParagraphFmt(parseParagraphStyle(element.getStyle()));
     }
   }, []);
 
@@ -243,6 +255,24 @@ export function HomeRibbon({ onOpenStyles }: HomeRibbonProps) {
     setHighlightColor(color);
     setOpenPicker(null);
     applyStyleText({ 'background-color': color === 'transparent' ? '' : color });
+  };
+
+  const applyParagraphFormat = (partial: Partial<ParagraphFormat>) => {
+    editor.update(() => {
+      const selection = $getSelection();
+      if (!$isRangeSelection(selection)) return;
+      const seen = new Set<string>();
+      selection.getNodes().forEach(node => {
+        const el = node.getTopLevelElementOrThrow();
+        if (!$isElementNode(el)) return;
+        const key = el.getKey();
+        if (seen.has(key)) return;
+        seen.add(key);
+        const existing = el.getStyle();
+        el.setStyle(buildParagraphStyle(partial, existing));
+      });
+    });
+    setParagraphFmt(prev => ({ ...prev, ...partial }));
   };
 
   const applyLineSpacing = (value: string) => {
@@ -534,6 +564,27 @@ export function HomeRibbon({ onOpenStyles }: HomeRibbonProps) {
                     </button>
                   ))}
                 </div>
+              )}
+            </div>
+
+            {/* ── Paragraph format ¶ button ─────────────────── */}
+            <div style={{ position: 'relative' }} ref={openPicker === 'paragraph' ? pickerRef : undefined}>
+              <button
+                type="button"
+                title="Paragraph formatting"
+                className={styles.toolbarBtn}
+                onClick={() => setOpenPicker(p => p === 'paragraph' ? null : 'paragraph')}
+                style={{ gap: 1 }}
+              >
+                <PilcrowSquare size={14} />
+              </button>
+              {openPicker === 'paragraph' && (
+                <ParagraphFormatPopover
+                  value={paragraphFmt}
+                  onChange={(partial) => {
+                    applyParagraphFormat(partial);
+                  }}
+                />
               )}
             </div>
           </div>

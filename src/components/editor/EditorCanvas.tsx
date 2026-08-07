@@ -8,6 +8,7 @@ import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { ImagesPlugin } from './plugins/ImagesPlugin';
+import { ParagraphFormatPlugin } from './plugins/ParagraphFormatPlugin';
 
 import styles from './Editor.module.css';
 
@@ -31,6 +32,7 @@ export function EditorCanvas() {
         <LinkPlugin />
         <TablePlugin />
         <ImagesPlugin />
+        <ParagraphFormatPlugin />
       </div>
     </div>
   );
