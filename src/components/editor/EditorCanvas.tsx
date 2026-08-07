@@ -3,6 +3,7 @@ import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
 import { AutoFocusPlugin } from '@lexical/react/LexicalAutoFocusPlugin';
 import { ListPlugin } from '@lexical/react/LexicalListPlugin';
+import { CheckListPlugin } from '@lexical/react/LexicalCheckListPlugin';
 import { LinkPlugin } from '@lexical/react/LexicalLinkPlugin';
 import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
@@ -26,6 +27,7 @@ export function EditorCanvas() {
         <HistoryPlugin />
         <AutoFocusPlugin />
         <ListPlugin />
+        <CheckListPlugin />
         <LinkPlugin />
         <TablePlugin />
         <ImagesPlugin />

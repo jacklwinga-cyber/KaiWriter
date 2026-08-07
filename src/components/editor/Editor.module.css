@@ -270,3 +270,75 @@
   color: var(--text-secondary);
   margin-top: 2px;
 }
+
+/* ── Checklist items (Lexical CheckListPlugin) ─────────────────────────── */
+
+.listItemUnchecked,
+.listItemChecked {
+  list-style-type: none;
+  position: relative;
+  padding-left: 4px;
+}
+
+.listItemUnchecked::before,
+.listItemChecked::before {
+  content: '';
+  position: absolute;
+  left: -22px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--text-secondary, #888);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+
+.listItemChecked::before {
+  background: var(--brand-primary, #6c63ff);
+  border-color: var(--brand-primary, #6c63ff);
+  /* Checkmark via SVG data URI */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='8' viewBox='0 0 10 8'%3E%3Cpath d='M1 4l3 3 5-6' stroke='%23fff' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+.listItemChecked > span {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* ── Blockquote ─────────────────────────────────────────────────────────── */
+
+.quote {
+  border-left: 3px solid var(--brand-primary, #6c63ff);
+  padding: 4px 0 4px 16px;
+  margin: 10px 0;
+  color: var(--text-secondary, #aaa);
+  font-style: italic;
+}
+
+/* ── Inline code / code block ───────────────────────────────────────────── */
+
+.code {
+  background: var(--bg-hover, rgba(255,255,255,0.05));
+  border: 1px solid var(--border-color, rgba(255,255,255,0.1));
+  border-radius: 4px;
+  padding: 12px 16px;
+  font-family: 'Courier New', Courier, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  overflow-x: auto;
+  margin: 10px 0;
+  tab-size: 2;
+}
+
+.textCode {
+  font-family: 'Courier New', Courier, monospace;
+  background: var(--bg-hover, rgba(255,255,255,0.07));
+  border-radius: 3px;
+  padding: 1px 5px;
+  font-size: 0.9em;
+}

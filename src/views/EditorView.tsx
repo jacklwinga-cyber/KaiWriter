@@ -50,11 +50,14 @@ import {
 
 const editorTheme = {
   paragraph: editorStyles.paragraph,
+  quote: editorStyles.quote,
+  code: editorStyles.code,
   text: {
     bold: editorStyles.textBold,
     italic: editorStyles.textItalic,
     underline: editorStyles.textUnderline,
     strikethrough: editorStyles.textStrikethrough,
+    code: editorStyles.textCode,
   },
   list: {
     ul: editorStyles.ul,
