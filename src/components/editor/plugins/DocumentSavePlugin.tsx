@@ -9,7 +9,7 @@ import {
   saveRecoverySnapshot,
 } from '../../../lib/recoveryStore';
 
-import { debounce } from '../../../lib/debounce';
+import { debounce, type DebouncedFn } from '../../../lib/debounce';
 
 const DEBOUNCE_MS = 800;
 
@@ -77,9 +77,15 @@ export function DocumentSavePlugin({
   }, [documentId, templateId, setSaveStatus]);
 
   // ── Debounced wrapper — stable identity across renders ──
-  const debouncedPersist = useRef(debounce(persistFn, DEBOUNCE_MS));
+  const debouncedPersist = useRef<DebouncedFn<(content: string) => void> | null>(null);
   useEffect(() => {
-    debouncedPersist.current = debounce(persistFn, DEBOUNCE_MS);
+    const current = debounce(persistFn, DEBOUNCE_MS);
+    debouncedPersist.current = current;
+    // When the document changes (persistFn identity) or the editor unmounts, save any
+    // queued edit now. Otherwise the stale timer fires later and saves the previous
+    // document under the new document's name (nameRef has moved on by then).
+    // Cleanups run before the nameRef effect updates, so the old name is still current.
+    return () => current.flushPending();
   }, [persistFn]);
 
   // ── Register editor update listener ──
@@ -88,7 +94,7 @@ export function DocumentSavePlugin({
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
       setSaveStatus('saving');
       const content = JSON.stringify(editorState.toJSON());
-      debouncedPersist.current(content);
+      debouncedPersist.current?.(content);
     });
   }, [editor, setSaveStatus]);
 
@@ -98,7 +104,7 @@ export function DocumentSavePlugin({
       const state = editor.getEditorState();
       const content = JSON.stringify(state.toJSON());
       // Flush the debounced IDB write (best-effort async)
-      debouncedPersist.current.flush(content);
+      debouncedPersist.current?.flush(content);
       // Synchronous localStorage backup survives crashes where async IDB may not
       saveRecoverySnapshot({
         documentId,
