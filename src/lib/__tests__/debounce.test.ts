@@ -92,3 +92,59 @@ describe('debounce', () => {
     // NOTE: this test deliberately exposes the ordering problem that P0-C2 must solve.
   });
 });
+
+describe('debounce.flushPending', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('runs the queued call immediately with the latest args', () => {
+    const fn = vi.fn();
+    const d = debounce(fn, 800);
+    d('first');
+    d('latest');
+    d.flushPending();
+    expect(fn).toHaveBeenCalledOnce();
+    expect(fn).toHaveBeenCalledWith('latest');
+    vi.advanceTimersByTime(800);
+    expect(fn).toHaveBeenCalledOnce(); // timer was cancelled
+  });
+
+  it('does nothing when no call is pending', () => {
+    const fn = vi.fn();
+    const d = debounce(fn, 800);
+    d.flushPending();
+    d('x');
+    vi.advanceTimersByTime(800);
+    d.flushPending(); // already fired
+    expect(fn).toHaveBeenCalledOnce();
+  });
+
+  it('does nothing after cancel or flush', () => {
+    const fn = vi.fn();
+    const d = debounce(fn, 800);
+    d('cancelled');
+    d.cancel();
+    d.flushPending();
+    d('flushed');
+    d.flush('now');
+    d.flushPending();
+    expect(fn).toHaveBeenCalledOnce();
+    expect(fn).toHaveBeenCalledWith('now');
+  });
+
+  it('saves the previous document before switching (no stale timer)', () => {
+    // Models DocumentSavePlugin: persist reads the current name at call time.
+    let currentName = 'Doc A';
+    const saved: Array<[string, string]> = [];
+    const persistA = (content: string) => saved.push([currentName, content]);
+    const dA = debounce(persistA, 800);
+
+    dA('A body');
+    // Switch documents within the debounce window: cleanup flushes before name moves on.
+    dA.flushPending();
+    currentName = 'Doc B';
+    vi.advanceTimersByTime(800);
+
+    expect(saved).toEqual([['Doc A', 'A body']]);
+  });
+});
