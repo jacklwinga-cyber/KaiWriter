@@ -431,3 +431,29 @@
     break-after: page;
   }
 }
+
+/* ── Track changes ────────────────────────────────────────────────────────── */
+
+:global(.kw-tracked-insert) {
+  color: #1a7f37;
+  text-decoration: underline;
+  text-decoration-color: #1a7f37;
+  background: rgba(26, 127, 55, 0.08);
+}
+
+:global(.kw-tracked-delete) {
+  color: #c62828;
+  text-decoration: line-through;
+  text-decoration-color: #c62828;
+}
+
+:global(.dark-theme) :global(.kw-tracked-insert) {
+  color: #5fd38a;
+  text-decoration-color: #5fd38a;
+  background: rgba(95, 211, 138, 0.1);
+}
+
+:global(.dark-theme) :global(.kw-tracked-delete) {
+  color: #ff8a80;
+  text-decoration-color: #ff8a80;
+}

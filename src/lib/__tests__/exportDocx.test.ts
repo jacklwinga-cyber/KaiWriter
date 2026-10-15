@@ -56,4 +56,26 @@ describe('lexicalToDocxBlob', () => {
     expect(xml).toContain('NUMPAGES');
     expect(xml).toContain('<w:titlePg');
   });
+
+  it('writes tracked changes as Word revisions and keeps link text', async () => {
+    const tracked = {
+      root: {
+        children: [
+          {
+            type: 'paragraph',
+            children: [
+              { type: 'text', text: 'The ', format: 0 },
+              { type: 'tracked-delete', author: 'Ana', date: 0, children: [{ type: 'text', text: 'cat', format: 0 }] },
+              { type: 'tracked-insert', author: 'Ana', date: 0, children: [{ type: 'text', text: 'dog', format: 0 }] },
+              { type: 'link', url: 'https://example.com', children: [{ type: 'text', text: ' see more', format: 0 }] },
+            ],
+          },
+        ],
+      },
+    };
+    const xml = await documentXml(await lexicalToDocxBlob(tracked, 'Doc'));
+    expect(xml).toMatch(/<w:del [^>]*w:author="Ana"[\s\S]*?<w:delText[^>]*>cat<\/w:delText>/);
+    expect(xml).toMatch(/<w:ins [^>]*w:author="Ana"[\s\S]*?>dog<\/w:t>/);
+    expect(xml).toContain(' see more');
+  });
 });

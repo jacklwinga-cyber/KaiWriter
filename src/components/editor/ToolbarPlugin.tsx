@@ -20,6 +20,9 @@ export interface ToolbarPluginProps {
   onOpenKaiAssist?: () => void;
   onOpenBranding?: () => void;
   onOpenHeaderFooter?: () => void;
+  trackChanges?: boolean;
+  onToggleTrackChanges?: () => void;
+  changeCount?: number;
   isPro?: boolean;
   onRequestUpgrade?: () => void;
   isFocusMode?: boolean;
@@ -42,6 +45,9 @@ export function ToolbarPlugin({
   onOpenKaiAssist,
   onOpenBranding,
   onOpenHeaderFooter,
+  trackChanges,
+  onToggleTrackChanges,
+  changeCount,
   isPro,
   onRequestUpgrade,
   isFocusMode,
@@ -70,6 +76,9 @@ export function ToolbarPlugin({
           onProofread={onOpenProofread}
           onWritingSuggestions={onOpenWritingSuggestions}
           onKaiAssist={onOpenKaiAssist}
+          trackChanges={trackChanges}
+          onToggleTrackChanges={onToggleTrackChanges}
+          changeCount={changeCount}
         />
       );
     case 'View':

@@ -16,6 +16,9 @@ import {
   PageBreak,
   PageNumber,
   PageOrientation,
+  InsertedTextRun,
+  DeletedTextRun,
+  type ParagraphChild,
 } from 'docx';
 import type { DocumentBranding } from './branding';
 import { hasBranding } from './branding';
@@ -29,6 +32,8 @@ const F_UNDERLINE = 8;
 
 interface SerializedNode {
   type: string;
+  author?: string;
+  date?: number;
   children?: SerializedNode[];
   text?: string;
   format?: number | string;
@@ -48,24 +53,46 @@ function alignmentFromFormat(format: string | number | undefined): (typeof Align
   return undefined;
 }
 
-function textRunsFromChildren(children: SerializedNode[] | undefined): TextRun[] {
+let revisionId = 0;
+
+function runOptions(child: SerializedNode) {
+  const fmt = typeof child.format === 'number' ? child.format : 0;
+  return {
+    text: child.text ?? '',
+    bold: Boolean(fmt & F_BOLD),
+    italics: Boolean(fmt & F_ITALIC),
+    strike: Boolean(fmt & F_STRIKE),
+    underline: fmt & F_UNDERLINE ? {} : undefined,
+  };
+}
+
+/** Text runs for a block's inline children; tracked changes become Word revisions. */
+function textRunsFromChildren(
+  children: SerializedNode[] | undefined,
+  revision?: { kind: 'insert' | 'delete'; author: string; date: string },
+): ParagraphChild[] {
   if (!children?.length) return [new TextRun('')];
 
-  const runs: TextRun[] = [];
+  const runs: ParagraphChild[] = [];
   for (const child of children) {
     if (child.type === 'text') {
-      const fmt = typeof child.format === 'number' ? child.format : 0;
-      runs.push(
-        new TextRun({
-          text: child.text ?? '',
-          bold: Boolean(fmt & F_BOLD),
-          italics: Boolean(fmt & F_ITALIC),
-          strike: Boolean(fmt & F_STRIKE),
-          underline: fmt & F_UNDERLINE ? {} : undefined,
-        }),
-      );
+      if (!revision) runs.push(new TextRun(runOptions(child)));
+      else {
+        const options = { ...runOptions(child), id: ++revisionId, author: revision.author, date: revision.date };
+        runs.push(revision.kind === 'insert' ? new InsertedTextRun(options) : new DeletedTextRun(options));
+      }
     } else if (child.type === 'linebreak') {
       runs.push(new TextRun({ break: 1 }));
+    } else if (child.type === 'tracked-insert' || child.type === 'tracked-delete') {
+      runs.push(
+        ...textRunsFromChildren(child.children, {
+          kind: child.type === 'tracked-insert' ? 'insert' : 'delete',
+          author: child.author || 'Unknown',
+          date: new Date(child.date ?? Date.now()).toISOString(),
+        }),
+      );
+    } else if (child.children?.length) {
+      runs.push(...textRunsFromChildren(child.children, revision)); // links and other inline wrappers
     }
   }
   return runs.length ? runs : [new TextRun('')];
@@ -88,11 +115,11 @@ function convertListItems(items: SerializedNode[], listType: string, level = 0):
   for (const item of items) {
     if (item.type !== 'listitem') continue;
 
-    const inlineChildren = item.children?.filter((c) => c.type === 'text' || c.type === 'linebreak') ?? [];
+    const inlineChildren = item.children?.filter((c) => c.type !== 'list' && c.type !== 'paragraph' && c.type !== 'heading') ?? [];
     const nestedLists = item.children?.filter((c) => c.type === 'list') ?? [];
     const blockChildren = item.children?.filter((c) => c.type === 'paragraph' || c.type === 'heading') ?? [];
 
-    let runs: TextRun[];
+    let runs: ParagraphChild[];
     if (blockChildren.length) {
       runs = blockChildren.flatMap((b) => textRunsFromChildren(b.children));
     } else {

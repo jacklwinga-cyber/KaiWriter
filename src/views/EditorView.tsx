@@ -19,6 +19,7 @@ import { FindReplacePlugin } from '../components/editor/plugins/FindReplacePlugi
 import { StatusBarPlugin } from '../components/editor/plugins/StatusBarPlugin';
 import { NavigationSidebarPlugin } from '../components/editor/plugins/NavigationSidebarPlugin';
 import { DocumentSavePlugin } from '../components/editor/plugins/DocumentSavePlugin';
+import { TrackChangesPlugin } from '../components/editor/plugins/TrackChangesPlugin';
 import { KeyboardShortcutsPlugin } from '../components/editor/plugins/KeyboardShortcutsPlugin';
 import { EditorChromeProvider, useEditorChrome } from '../contexts/EditorChromeContext';
 import { CommentsSidebarPlugin } from '../components/editor/plugins/CommentsSidebarPlugin';
@@ -214,7 +215,7 @@ function EditorLayout({
   onDismissRecovery?: () => void;
 }) {
   const [editor] = useLexicalComposerContext();
-  const { isPro, accessToken } = useAuth();
+  const { isPro, accessToken, user } = useAuth();
   const { zoom, viewMode } = useEditorPreferences();
   const { canUndo, canRedo, undo, redo, saveStatus, setSaveStatus, syncStatus } = useEditorChrome();
   const [isSearchOpen, , closeSearch] = useSearchPalette();
@@ -222,6 +223,25 @@ function EditorLayout({
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isBrandSettingsOpen, setIsBrandSettingsOpen] = useState(false);
   const [isHeaderFooterOpen, setIsHeaderFooterOpen] = useState(false);
+  const trackChangesKey = `kaiwriter-track-changes:${documentId}`;
+  const [trackChanges, setTrackChanges] = useState(() => {
+    try {
+      return localStorage.getItem(trackChangesKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [changeCount, setChangeCount] = useState(0);
+  const toggleTrackChanges = () => {
+    const next = !trackChanges;
+    setTrackChanges(next);
+    try {
+      if (next) localStorage.setItem(trackChangesKey, '1');
+      else localStorage.removeItem(trackChangesKey);
+    } catch {
+      // per-device preference only
+    }
+  };
   const [isKaiAssistOpen, setIsKaiAssistOpen] = useState(false);
   const [showAssistBanner, setShowAssistBanner] = useState(true);
   const [placeholderCount, setPlaceholderCount] = useState(0);
@@ -399,6 +419,9 @@ function EditorLayout({
             onOpenKaiAssist={() => setIsKaiAssistOpen(true)}
             onOpenBranding={() => setIsBrandSettingsOpen(true)}
             onOpenHeaderFooter={() => setIsHeaderFooterOpen(true)}
+            trackChanges={trackChanges}
+            onToggleTrackChanges={toggleTrackChanges}
+            changeCount={changeCount}
             isPro={isPro}
             onRequestUpgrade={() => setIsUpgradeOpen(true)}
             isFocusMode={isFocusMode}
@@ -465,6 +488,7 @@ function EditorLayout({
         <SearchPalette isOpen={isSearchOpen} onClose={closeSearch} />
       </MainLayout>
       <DocumentSavePlugin documentId={documentId} documentName={documentName} templateId={templateId} isPro={isPro} branding={branding} />
+      <TrackChangesPlugin enabled={trackChanges} author={user?.displayName || 'Guest'} onChangeCount={setChangeCount} />
       <FindReplacePlugin />
       <KeyboardShortcutsPlugin />
       <ProUpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
