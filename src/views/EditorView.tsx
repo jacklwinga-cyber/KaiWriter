@@ -311,8 +311,19 @@ function EditorLayout({
     downloadText(lexicalToPlainText(json), exportFilename(documentName, 'txt'));
   };
 
-  const handleExportPdf = () => {
-    window.print();
+  const handleExportPdf = async () => {
+    setSaveStatus('saving');
+    try {
+      const { lexicalToPdfBlob } = await import('../lib/exportPdf');
+      const json = editor.getEditorState().toJSON();
+      const blob = await lexicalToPdfBlob(json, documentName, branding, pageSetup);
+      downloadBlob(blob, exportFilename(documentName, 'pdf'));
+    } catch (err) {
+      console.error('[KaiWriter] PDF export failed:', err);
+      window.alert('Sorry, the PDF could not be created. Try File ▸ Print and choose "Save as PDF" instead.');
+    } finally {
+      setSaveStatus('saved');
+    }
   };
 
   const handleRestoreFromCrash = () => {
@@ -372,7 +383,7 @@ function EditorLayout({
         isPro={isPro}
         onExportDocx={() => void handleExportDocx()}
         onExportTxt={handleExportTxt}
-        onExportPdf={handleExportPdf}
+        onExportPdf={() => void handleExportPdf()}
         onRequestUpgrade={() => setIsUpgradeOpen(true)}
         onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
         toolbar={
