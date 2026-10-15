@@ -44,6 +44,11 @@ export function DocumentSavePlugin({
   const isProRef = useRef(isPro);
   useEffect(() => { isProRef.current = isPro; }, [isPro]);
 
+  // Latest editor content not yet persisted to IDB; null when everything is saved.
+  // Recovery snapshots are only written while this is set, so a clean document
+  // never leaves a snapshot behind that would trigger a false recovery banner.
+  const unsavedContentRef = useRef<string | null>(null);
+
   // ── Register cloud sync status callback (P0-C3) ──
   // Connects documentStore's fire-and-forget cloud push to the UI sync indicator.
   // Cleaned up on unmount so stale callbacks can't update unmounted state.
@@ -67,8 +72,11 @@ export function DocumentSavePlugin({
       if (isProRef.current) {
         void maybeAutoSaveVersion(documentId, nameRef.current, content);
       }
-      // Clear crash-recovery snapshot — document is safely persisted
-      clearRecoverySnapshot(documentId);
+      // Clear crash-recovery snapshot once the latest edit is safely persisted
+      if (unsavedContentRef.current === content) {
+        unsavedContentRef.current = null;
+        clearRecoverySnapshot(documentId);
+      }
       setSaveStatus('saved');
     } catch (err) {
       console.error('[KaiWriter] autosave failed:', err);
@@ -85,7 +93,10 @@ export function DocumentSavePlugin({
     // queued edit now. Otherwise the stale timer fires later and saves the previous
     // document under the new document's name (nameRef has moved on by then).
     // Cleanups run before the nameRef effect updates, so the old name is still current.
-    return () => current.flushPending();
+    return () => {
+      current.flushPending();
+      unsavedContentRef.current = null;
+    };
   }, [persistFn]);
 
   // ── Register editor update listener ──
@@ -94,6 +105,7 @@ export function DocumentSavePlugin({
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
       setSaveStatus('saving');
       const content = JSON.stringify(editorState.toJSON());
+      unsavedContentRef.current = content;
       debouncedPersist.current?.(content);
     });
   }, [editor, setSaveStatus]);
@@ -101,9 +113,9 @@ export function DocumentSavePlugin({
   // ── beforeunload: flush debounce immediately, write localStorage emergency backup ──
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const state = editor.getEditorState();
-      const content = JSON.stringify(state.toJSON());
-      // Flush the debounced IDB write (best-effort async)
+      const content = unsavedContentRef.current;
+      if (content === null) return;
+      // Flush the queued (or previously failed) IDB write (best-effort async)
       debouncedPersist.current?.flush(content);
       // Synchronous localStorage backup survives crashes where async IDB may not
       saveRecoverySnapshot({
@@ -116,13 +128,13 @@ export function DocumentSavePlugin({
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [editor, documentId]);
+  }, [documentId]);
 
   // ── 30-second crash-recovery interval ──
   useEffect(() => {
     const interval = setInterval(() => {
-      const state = editor.getEditorState();
-      const content = JSON.stringify(state.toJSON());
+      const content = unsavedContentRef.current;
+      if (content === null) return;
       saveRecoverySnapshot({
         documentId,
         name: nameRef.current,
@@ -132,7 +144,7 @@ export function DocumentSavePlugin({
       });
     }, RECOVERY_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [editor, documentId]);
+  }, [documentId]);
 
   return null;
 }

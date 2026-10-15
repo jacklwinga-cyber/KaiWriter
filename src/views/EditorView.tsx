@@ -526,7 +526,7 @@ export function EditorView() {
       const lastSaved = saved?.lastModified ?? 0;
       if (hasNewerRecovery(id, lastSaved)) {
         const snap = loadRecoverySnapshot(id);
-        if (snap) {
+        if (snap && snap.content !== saved?.content) {
           setRecoveryContent(snap.content);
           setRecoveryName(snap.name);
         }

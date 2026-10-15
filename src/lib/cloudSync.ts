@@ -1,5 +1,5 @@
 import { getSupabase, isSupabaseConfigured } from './supabase';
-import { listDocuments, saveDocumentLocal, type StoredDocument } from './documentStore';
+import { getDocument, listDocuments, saveDocumentLocal, type StoredDocument } from './documentStore';
 import { listComments, replaceCommentsForDocument, type DocumentComment } from './commentStore';
 import type { DocumentBranding } from './branding';
 
@@ -75,7 +75,12 @@ export async function mergeCloudIntoLocal(userId: string): Promise<void> {
   for (const cloudDoc of cloudDocs) {
     const local = localById.get(cloudDoc.id);
     if (!local || cloudDoc.lastModified > local.lastModified) {
-      await saveDocumentLocal(cloudDoc);
+      // listDocuments() hides trashed docs; keep a locally trashed doc in Trash.
+      const stored = local ?? (await getDocument(cloudDoc.id));
+      if (stored?.deletedAt) continue;
+      // Cloud rows carry no revision. Stamp one above the stored copy so the
+      // stale-write guard in saveDocumentLocal accepts the newer cloud version.
+      await saveDocumentLocal({ ...cloudDoc, revision: (stored?.revision ?? 0) + 1 });
     } else if (local.lastModified > cloudDoc.lastModified) {
       await pushDocumentToCloud(userId, local);
     }
