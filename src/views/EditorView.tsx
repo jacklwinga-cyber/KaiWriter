@@ -10,13 +10,7 @@ import {
   lexicalToPlainText,
 } from '../lib/exportPlainText';
 import { ProUpgradeModal, VersionHistoryModal, BrandSettingsModal, HeaderFooterModal } from '../components/ui/Modals';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
-import { ListItemNode, ListNode } from '@lexical/list';
-import { AutoLinkNode, LinkNode } from '@lexical/link';
-
-import { ImageNode } from '../components/editor/nodes/ImageNode';
-import { PageBreakNode } from '../components/editor/nodes/PageBreakNode';
+import { EDITOR_NODES } from '../components/editor/nodes/editorNodes';
 import { MainLayout } from '../components/layout/MainLayout';
 import { EditorCanvas } from '../components/editor/EditorCanvas';
 import { ToolbarPlugin } from '../components/editor/ToolbarPlugin';
@@ -77,10 +71,6 @@ const editorTheme = {
   image: editorStyles.image,
 };
 
-const EDITOR_NODES = [
-  HeadingNode, QuoteNode, ListNode, ListItemNode,
-  LinkNode, AutoLinkNode, TableNode, TableCellNode, TableRowNode, ImageNode, PageBreakNode,
-];
 
 function EditorWorkspace({
   documentId,
