@@ -42,6 +42,7 @@ import {
 import { getPlainTextFromEditor } from '../lib/plainTextMap';
 import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName } from '../lib/documentStore';
 import editorStyles from '../components/editor/Editor.module.css';
+import { DOCUMENT_UPDATED_EVENT, type DocumentUpdatedDetail } from '../lib/syncOutbox';
 import {
   clearRecoverySnapshot,
   hasNewerRecovery,
@@ -128,6 +129,16 @@ function EditorWorkspace({
     setDocumentName(newName);
     void updateDocumentName(documentId, newName);
   };
+
+  // A rename on another device arrives with the pulled document.
+  useEffect(() => {
+    const onDocumentUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<DocumentUpdatedDetail>).detail;
+      if (detail.id === documentId) setDocumentName(detail.name);
+    };
+    window.addEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+    return () => window.removeEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+  }, [documentId]);
 
   return (
     <EditorPreferencesProvider>

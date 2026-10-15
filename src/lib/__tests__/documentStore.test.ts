@@ -261,3 +261,23 @@ describe('documentStore — revision protection (P0-C2)', () => {
     expect(afterTrash?.deletedAt).toBeDefined();
   });
 });
+
+describe('documentStore — partial saves keep metadata', () => {
+  it('an editor-style save (no pinned/folderId) keeps the pin and folder', async () => {
+    await saveDocument(makeDoc('meta1', { pinned: true, folderId: 'folder_a' }));
+    // DocumentSavePlugin saves only id/name/content/templateId/branding
+    await saveDocument({ id: 'meta1', name: 'Doc meta1', lastModified: Date.now(), content: 'typed' });
+    const stored = await getDocument('meta1');
+    expect(stored?.content).toBe('typed');
+    expect(stored?.pinned).toBe(true);
+    expect(stored?.folderId).toBe('folder_a');
+  });
+
+  it('restoring from Trash clears deletedAt', async () => {
+    await saveDocument(makeDoc('meta2'));
+    await trashDocument('meta2');
+    await restoreDocument('meta2');
+    expect((await getDocument('meta2'))?.deletedAt).toBeUndefined();
+    expect((await listDocuments()).some((d) => d.id === 'meta2')).toBe(true);
+  });
+});

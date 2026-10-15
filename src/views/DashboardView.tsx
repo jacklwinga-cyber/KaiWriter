@@ -18,6 +18,7 @@ import { TemplateDetailPanel } from '../components/templates/TemplateDetailPanel
 import { TemplatePreviewModal } from '../components/templates/TemplatePreviewModal';
 import { countDocuments, trashDocument, listDocuments, listTrashedDocuments, permanentlyDeleteDocument, restoreDocument, migrateFromLocalStorage, saveDocument, toggleDocumentPin, updateDocumentName, type StoredDocument } from '../lib/documentStore';
 import { createDocumentId } from '../lib/ids';
+import { LIBRARY_CHANGED_EVENT } from '../lib/syncOutbox';
 import {
   createFolder,
   listFolders,
@@ -113,6 +114,26 @@ export function DashboardView() {
       setTrashedDocs(trashed);
     })();
   }, []);
+
+  // Reload the library when changes from the user's other devices are pulled from the cloud.
+  useEffect(() => {
+    const reload = async () => {
+      const [active, trashed, allFolders, counts] = await Promise.all([
+        listDocuments(),
+        listTrashedDocuments(),
+        listFolders(),
+        countDocumentsPerFolder(),
+      ]);
+      setRecentDocs(active);
+      setTrashedDocs(trashed);
+      setFolders(allFolders);
+      setFolderDocCounts(counts);
+      if (activeFolderId) setFolderDocs(await listDocumentsInFolder(activeFolderId));
+    };
+    const onLibraryChanged = () => { void reload(); };
+    window.addEventListener(LIBRARY_CHANGED_EVENT, onLibraryChanged);
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, onLibraryChanged);
+  }, [activeFolderId]);
 
   const openAccount = (view: 'main' | 'signin' = 'main') => {
     setProfileDefaultView(view);
