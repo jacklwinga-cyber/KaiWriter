@@ -1,15 +1,16 @@
 import { useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import { INSERT_TABLE_COMMAND } from '@lexical/table';
-import { Image as ImageIcon, Table as TableIcon, FileSignature } from 'lucide-react';
+import { Image as ImageIcon, Table as TableIcon, FileSignature, SeparatorHorizontal, PanelTop, Hash } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
 import { INSERT_IMAGE_COMMAND } from '../plugins/ImagesPlugin';
+import { INSERT_PAGE_BREAK_COMMAND } from '../nodes/PageBreakNode';
 import { SignatureModal } from '../../ui/Modals';
 
 // 10 MB original file → ~13.3 MB base64 — reasonable upper bound for IDB storage
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 
-export function InsertRibbon() {
+export function InsertRibbon({ onOpenHeaderFooter }: { onOpenHeaderFooter?: () => void }) {
   const [editor] = useLexicalComposerContext();
   const [isSignatureOpen, setIsSignatureOpen] = useState(false);
   const [imageError, setImageError] = useState<string | null>(null);
@@ -86,6 +87,25 @@ export function InsertRibbon() {
         <div className={styles.largeToolBtn} onClick={() => setIsSignatureOpen(true)} title="Draw or type a signature">
           <FileSignature size={24} style={{ color: 'var(--accent-success)' }} />
           <span>Signature</span>
+        </div>
+      </div>
+
+      <div className={styles.compactRibbonGroup}>
+        <div
+          className={styles.largeToolBtn}
+          onClick={() => editor.dispatchCommand(INSERT_PAGE_BREAK_COMMAND, undefined)}
+          title="Start the next content on a new page (Ctrl+Enter)"
+        >
+          <SeparatorHorizontal size={24} style={{ color: 'var(--brand-primary)' }} />
+          <span>Page Break</span>
+        </div>
+        <div className={styles.largeToolBtn} onClick={onOpenHeaderFooter} title="Edit the header and footer">
+          <PanelTop size={24} style={{ color: 'var(--brand-primary)' }} />
+          <span>Header &amp; Footer</span>
+        </div>
+        <div className={styles.largeToolBtn} onClick={onOpenHeaderFooter} title="Add page numbers">
+          <Hash size={24} style={{ color: 'var(--brand-primary)' }} />
+          <span>Page Number</span>
         </div>
       </div>
 

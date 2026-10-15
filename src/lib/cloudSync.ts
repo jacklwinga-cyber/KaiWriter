@@ -39,6 +39,7 @@ import {
 } from './folderStore';
 import { listComments, replaceCommentsForDocument, type DocumentComment } from './commentStore';
 import type { DocumentBranding } from './branding';
+import type { PageSetup } from './pageSetup';
 import { createDocumentId } from './ids';
 import {
   completeSync,
@@ -52,7 +53,7 @@ import {
 const DOCS_TABLE = 'kaiwriter_documents';
 const FOLDERS_TABLE = 'kaiwriter_folders';
 const DOC_COLUMNS =
-  'id, name, content, template_id, last_modified, branding, deleted_at, purged, pinned, folder_id, updated_at';
+  'id, name, content, template_id, last_modified, branding, page_setup, deleted_at, purged, pinned, folder_id, updated_at';
 const PULL_PAGE_SIZE = 200;
 const CURSOR_PREFIX = 'kaiwriter-sync-cursor-';
 
@@ -63,6 +64,7 @@ interface DocumentRow {
   template_id: string | null;
   last_modified: number;
   branding?: DocumentBranding | null;
+  page_setup?: PageSetup | null;
   deleted_at?: number | null;
   purged?: boolean | null;
   pinned?: boolean | null;
@@ -89,6 +91,7 @@ function rowToDoc(row: DocumentRow): StoredDocument {
     templateId: row.template_id ?? undefined,
     lastModified: row.last_modified,
     branding: row.branding ?? undefined,
+    pageSetup: row.page_setup ?? undefined,
     deletedAt: row.deleted_at ?? undefined,
     pinned: Boolean(row.pinned),
     folderId: row.folder_id ?? undefined,
@@ -105,6 +108,7 @@ function docToRow(userId: string, doc: StoredDocument) {
     template_id: doc.templateId ?? null,
     last_modified: doc.lastModified,
     branding: doc.branding ?? null,
+    page_setup: doc.pageSetup ?? null,
     deleted_at: doc.deletedAt ?? null,
     pinned: Boolean(doc.pinned),
     folder_id: doc.folderId ?? null,
@@ -183,6 +187,7 @@ async function applyCloudVersion(local: StoredDocument | null, cloud: StoredDocu
       id: cloud.id,
       content: cloud.content,
       name: cloud.name,
+      pageSetup: cloud.pageSetup,
       previousBase: local.cloudLastModified,
     });
   }
@@ -242,6 +247,7 @@ async function flushDocument(userId: string, id: string): Promise<void> {
       template_id: null,
       last_modified: now,
       branding: null,
+      page_setup: null,
       deleted_at: now,
       pinned: false,
       folder_id: null,

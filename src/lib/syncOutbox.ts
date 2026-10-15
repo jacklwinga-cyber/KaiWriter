@@ -10,6 +10,8 @@
  * sequence is unchanged, so an edit made mid-push stays queued.
  */
 
+import type { PageSetup } from './pageSetup';
+
 const KEY_PREFIX = 'kaiwriter-sync-outbox-';
 
 type Outbox = Record<string, number>;
@@ -64,6 +66,7 @@ export interface DocumentUpdatedDetail {
   id: string;
   content: string;
   name: string;
+  pageSetup?: PageSetup;
   /** cloudLastModified the local copy was based on before this update. */
   previousBase: number | undefined;
 }

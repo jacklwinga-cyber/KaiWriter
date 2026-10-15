@@ -4,6 +4,7 @@ import { useTheme } from '../../contexts/ThemeProvider';
 import type { ThemeMode } from '../../contexts/ThemeProvider';
 import { useAuth } from '../../contexts/AuthProvider';
 import { PRO_FEATURES, FREE_FEATURES, openBillingPortal } from '../../lib/stripe';
+import type { PageNumberPosition, PageSetup } from '../../lib/pageSetup';
 import {
   getLegacyPinProQaStatus,
   resetLegacyPinProQaState,
@@ -1066,6 +1067,73 @@ export function SignatureModal({ isOpen, onClose, onInsert }: ModalProps & { onI
               <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>Cancel</button>
               <button onClick={handleInsert} style={{ ...primaryBtnStyle, width: 'auto', padding: '8px 16px' }}>Insert</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HeaderFooterModal({
+  isOpen,
+  onClose,
+  pageSetup,
+  onSave,
+}: ModalProps & { pageSetup: PageSetup; onSave: (patch: Partial<PageSetup>) => void }) {
+  if (!isOpen) return null;
+  // Mounted fresh on each open so the form starts from the current settings.
+  return <HeaderFooterForm onClose={onClose} pageSetup={pageSetup} onSave={onSave} />;
+}
+
+function HeaderFooterForm({
+  onClose,
+  pageSetup,
+  onSave,
+}: { onClose: () => void; pageSetup: PageSetup; onSave: (patch: Partial<PageSetup>) => void }) {
+  const [headerText, setHeaderText] = useState(pageSetup.headerText ?? '');
+  const [footerText, setFooterText] = useState(pageSetup.footerText ?? '');
+  const [pageNumbers, setPageNumbers] = useState<PageNumberPosition>(pageSetup.pageNumbers);
+  const [differentFirstPage, setDifferentFirstPage] = useState(Boolean(pageSetup.differentFirstPage));
+
+  const handleSave = () => {
+    onSave({
+      headerText: headerText.trim() || undefined,
+      footerText: footerText.trim() || undefined,
+      pageNumbers,
+      differentFirstPage,
+    });
+    onClose();
+  };
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={{ ...modalStyle, width: '480px' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Header and footer">
+        <div style={headerStyle}>
+          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Header &amp; Footer</h2>
+          <button type="button" onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={20} /></button>
+        </div>
+        <div style={contentStyle}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px' }} htmlFor="kw-header-text">Header</label>
+          <input id="kw-header-text" style={inputStyle} value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder="e.g. {title}" />
+          <label style={{ display: 'block', fontSize: '13px', margin: '16px 0 6px' }} htmlFor="kw-footer-text">Footer</label>
+          <input id="kw-footer-text" style={inputStyle} value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder="e.g. Confidential · {date}" />
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+            Use {'{title}'}, {'{date}'}, {'{page}'} and {'{pages}'} to insert the document title, today's date and page numbers.
+          </p>
+          <label style={{ display: 'block', fontSize: '13px', margin: '16px 0 6px' }} htmlFor="kw-page-numbers">Page numbers</label>
+          <select id="kw-page-numbers" style={inputStyle} value={pageNumbers} onChange={(e) => setPageNumbers(e.target.value as PageNumberPosition)}>
+            <option value="none">None</option>
+            <option value="footer-center">Bottom of page, centered</option>
+            <option value="footer-right">Bottom of page, right</option>
+            <option value="header-right">Top of page, right</option>
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '16px' }}>
+            <input type="checkbox" checked={differentFirstPage} onChange={(e) => setDifferentFirstPage(e.target.checked)} />
+            Different first page (no header, footer or number on page 1)
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>Cancel</button>
+            <button type="button" onClick={handleSave} style={{ ...primaryBtnStyle, width: 'auto', padding: '8px 16px' }}>Apply</button>
           </div>
         </div>
       </div>

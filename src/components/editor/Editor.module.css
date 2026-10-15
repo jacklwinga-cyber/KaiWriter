@@ -342,3 +342,92 @@
   padding: 1px 5px;
   font-size: 0.9em;
 }
+
+/* ── Page breaks and page guides ─────────────────────────────────────────── */
+
+.pageBreak {
+  position: relative;
+  margin: 24px calc(-1 * var(--page-padding, 96px));
+  border-top: 1px dashed var(--border-color);
+  border-bottom: 1px dashed var(--border-color);
+  height: 14px;
+  background: var(--bg-app, rgba(127, 127, 127, 0.08));
+  cursor: pointer;
+  user-select: none;
+}
+
+.pageBreak span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-paper);
+  border-radius: 3px;
+}
+
+.pageBreakSelected {
+  outline: 2px solid var(--brand-primary);
+}
+
+.paginationLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pageGuide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border-color);
+}
+
+.pageGuideLabel {
+  position: absolute;
+  right: 8px;
+  top: -9px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-paper);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.pageHeaderPreview,
+.pageFooterPreview {
+  position: absolute;
+  left: var(--margin);
+  right: var(--margin);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pageHeaderPreview {
+  top: calc(var(--margin) / 2 - 8px);
+}
+
+.pageFooterPreview {
+  bottom: calc(var(--margin) / 2 - 8px);
+}
+
+@media print {
+  .paginationLayer,
+  .pageBreak span {
+    display: none;
+  }
+  .pageBreak {
+    border: none;
+    height: 0;
+    margin: 0;
+    break-after: page;
+  }
+}

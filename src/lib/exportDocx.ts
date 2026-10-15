@@ -13,9 +13,13 @@ import {
   Header,
   Footer,
   ImageRun,
+  PageBreak,
+  PageNumber,
+  PageOrientation,
 } from 'docx';
 import type { DocumentBranding } from './branding';
 import { hasBranding } from './branding';
+import { normalizePageSetup, pageInches, type PageSetup } from './pageSetup';
 
 /** Lexical text format bit flags */
 const F_BOLD = 1;
@@ -142,6 +146,9 @@ function convertBlock(node: SerializedNode): (Paragraph | Table)[] {
     case 'table':
       return [convertTable(node)];
 
+    case 'page-break':
+      return [new Paragraph({ children: [new PageBreak()] })];
+
     case 'image':
       return [
         new Paragraph({
@@ -189,7 +196,7 @@ function hexColor(color?: string): string | undefined {
   return color.replace('#', '').toUpperCase();
 }
 
-function buildBrandingHeader(branding: DocumentBranding): Header {
+function brandingHeaderParagraph(branding: DocumentBranding): Paragraph {
   const runs: (TextRun | ImageRun)[] = [];
   if (branding.logoDataUrl) {
     try {
@@ -215,27 +222,55 @@ function buildBrandingHeader(branding: DocumentBranding): Header {
       }),
     );
   }
-  return new Header({
-    children: [new Paragraph({ children: runs.length ? runs : [new TextRun('')] })],
+  return new Paragraph({ children: runs.length ? runs : [new TextRun('')] });
+}
+
+/** Header/footer text with {page}, {pages}, {title} and {date} turned into Word fields or text. */
+function headerFooterRuns(text: string, title: string): TextRun[] {
+  const parts = text.split(/(\{(?:page|pages|title|date)\})/i).filter(Boolean);
+  return parts.map((part) => {
+    switch (part.toLowerCase()) {
+      case '{page}': return new TextRun({ children: [PageNumber.CURRENT], size: 18 });
+      case '{pages}': return new TextRun({ children: [PageNumber.TOTAL_PAGES], size: 18 });
+      case '{title}': return new TextRun({ text: title, size: 18 });
+      case '{date}': return new TextRun({ text: new Date().toLocaleDateString(), size: 18 });
+      default: return new TextRun({ text: part, size: 18 });
+    }
   });
 }
 
-function buildBrandingFooter(branding: DocumentBranding): Footer | undefined {
-  if (!branding.headerText?.trim()) return undefined;
-  return new Footer({
+function pageNumberParagraph(position: PageSetup['pageNumbers']): Paragraph {
+  return new Paragraph({
+    alignment: position === 'footer-center' ? AlignmentType.CENTER : AlignmentType.RIGHT,
     children: [
-      new Paragraph({
-        alignment: AlignmentType.CENTER,
-        children: [
-          new TextRun({
-            text: branding.headerText,
-            size: 18,
-            color: hexColor(branding.primaryColor),
-          }),
-        ],
-      }),
+      new TextRun({ children: ['Page ', PageNumber.CURRENT, ' of ', PageNumber.TOTAL_PAGES], size: 18 }),
     ],
   });
+}
+
+function buildHeader(setup: PageSetup, title: string, branding?: DocumentBranding | null): Header | undefined {
+  const paragraphs: Paragraph[] = [];
+  if (branding && (branding.companyName || branding.logoDataUrl)) paragraphs.push(brandingHeaderParagraph(branding));
+  if (setup.headerText) paragraphs.push(new Paragraph({ children: headerFooterRuns(setup.headerText, title) }));
+  if (setup.pageNumbers === 'header-right') paragraphs.push(pageNumberParagraph(setup.pageNumbers));
+  return paragraphs.length ? new Header({ children: paragraphs }) : undefined;
+}
+
+function buildFooter(setup: PageSetup, title: string, branding?: DocumentBranding | null): Footer | undefined {
+  const paragraphs: Paragraph[] = [];
+  if (branding?.headerText?.trim()) {
+    paragraphs.push(
+      new Paragraph({
+        alignment: AlignmentType.CENTER,
+        children: [new TextRun({ text: branding.headerText, size: 18, color: hexColor(branding.primaryColor) })],
+      }),
+    );
+  }
+  if (setup.footerText) paragraphs.push(new Paragraph({ children: headerFooterRuns(setup.footerText, title) }));
+  if (setup.pageNumbers === 'footer-center' || setup.pageNumbers === 'footer-right') {
+    paragraphs.push(pageNumberParagraph(setup.pageNumbers));
+  }
+  return paragraphs.length ? new Footer({ children: paragraphs }) : undefined;
 }
 
 /** Convert Lexical editorState.toJSON() output to a DOCX Blob. */
@@ -243,7 +278,17 @@ export async function lexicalToDocxBlob(
   editorStateJson: unknown,
   title = 'Document',
   branding?: DocumentBranding | null,
+  pageSetup?: PageSetup | null,
 ): Promise<Blob> {
+  const setup = normalizePageSetup(pageSetup);
+  const inches = pageInches({ ...setup, orientation: 'Portrait' });
+  const twips = (value: number) => Math.round(value * 1440);
+  const brand = branding && hasBranding(branding) ? branding : null;
+  const header = buildHeader(setup, title, brand);
+  const footer = buildFooter(setup, title, brand);
+  // "Different first page": an empty first-page header/footer.
+  const firstHeader = setup.differentFirstPage ? new Header({ children: [new Paragraph('')] }) : undefined;
+  const firstFooter = setup.differentFirstPage ? new Footer({ children: [new Paragraph('')] }) : undefined;
   const root = (editorStateJson as { root?: SerializedNode }).root;
   const blocks = (root?.children ?? []).flatMap(convertBlock);
 
@@ -272,9 +317,24 @@ export async function lexicalToDocxBlob(
     },
     sections: [
       {
-        properties: {},
-        headers: branding && hasBranding(branding) ? { default: buildBrandingHeader(branding) } : undefined,
-        footers: branding && hasBranding(branding) ? { default: buildBrandingFooter(branding) } : undefined,
+        properties: {
+          titlePage: Boolean(setup.differentFirstPage),
+          page: {
+            size: {
+              width: twips(inches.width),
+              height: twips(inches.height),
+              orientation: setup.orientation === 'Landscape' ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT,
+            },
+            margin: {
+              top: twips(inches.margin),
+              right: twips(inches.margin),
+              bottom: twips(inches.margin),
+              left: twips(inches.margin),
+            },
+          },
+        },
+        headers: header || firstHeader ? { default: header ?? new Header({ children: [] }), first: firstHeader } : undefined,
+        footers: footer || firstFooter ? { default: footer ?? new Footer({ children: [] }), first: firstFooter } : undefined,
         children: blocks.length ? blocks : [new Paragraph('')],
       },
     ],

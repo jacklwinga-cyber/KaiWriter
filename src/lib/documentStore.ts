@@ -1,4 +1,5 @@
 import type { DocumentBranding } from './branding';
+import type { PageSetup } from './pageSetup';
 import { openDb } from './idb';
 import { enqueueSync } from './syncOutbox';
 
@@ -52,6 +53,8 @@ export interface StoredDocument {
   templateId?: string;
   pinned?: boolean;
   branding?: DocumentBranding;
+  /** Paper size, margins, header/footer and page numbers. Undefined = defaults. */
+  pageSetup?: PageSetup;
   /** Set when document is soft-deleted (moved to Trash). Unix ms timestamp. */
   deletedAt?: number;
   /**
@@ -353,6 +356,15 @@ export async function updateDocumentName(id: string, name: string): Promise<void
     return;
   }
   await saveDocument({ ...doc, name, lastModified: Date.now() });
+}
+
+export async function updateDocumentPageSetup(id: string, pageSetup: PageSetup): Promise<void> {
+  const doc = await getDocument(id);
+  await saveDocument({
+    ...(doc ?? { id, name: 'Untitled Document', content: '' }),
+    pageSetup,
+    lastModified: Date.now(),
+  });
 }
 
 export async function toggleDocumentPin(id: string): Promise<void> {

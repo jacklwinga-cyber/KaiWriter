@@ -1,11 +1,12 @@
--- KaiWriter cross-device sync: trash, pins, folders, tombstones, incremental pull, realtime
+-- KaiWriter cross-device sync: trash, pins, folders, page setup, tombstones, incremental pull, realtime
 
 -- Documents: sync the metadata that previously stayed on one device.
 ALTER TABLE public.kaiwriter_documents
   ADD COLUMN IF NOT EXISTS deleted_at bigint,
   ADD COLUMN IF NOT EXISTS purged boolean NOT NULL DEFAULT false,
   ADD COLUMN IF NOT EXISTS pinned boolean NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS folder_id text;
+  ADD COLUMN IF NOT EXISTS folder_id text,
+  ADD COLUMN IF NOT EXISTS page_setup jsonb;
 
 -- updated_at is the incremental-pull cursor, so it must come from the server
 -- clock, not the client's.

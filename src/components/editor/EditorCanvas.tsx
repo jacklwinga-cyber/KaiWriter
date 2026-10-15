@@ -9,6 +9,8 @@ import { LexicalErrorBoundary } from '@lexical/react/LexicalErrorBoundary';
 import { TablePlugin } from '@lexical/react/LexicalTablePlugin';
 import { ImagesPlugin } from './plugins/ImagesPlugin';
 import { ParagraphFormatPlugin } from './plugins/ParagraphFormatPlugin';
+import { PaginationPlugin } from './plugins/PaginationPlugin';
+import { DEFAULT_PAGE_SETUP, type PageSetup } from '../../lib/pageSetup';
 
 import styles from './Editor.module.css';
 
@@ -16,7 +18,7 @@ function Placeholder() {
   return <div className={styles.placeholder}>Start typing...</div>;
 }
 
-export function EditorCanvas() {
+export function EditorCanvas({ pageSetup = DEFAULT_PAGE_SETUP, title = '' }: { pageSetup?: PageSetup; title?: string }) {
   return (
     <div className={styles.editorContainer}>
       <div className={styles.editorInner}>
@@ -33,6 +35,7 @@ export function EditorCanvas() {
         <TablePlugin />
         <ImagesPlugin />
         <ParagraphFormatPlugin />
+        <PaginationPlugin pageSetup={pageSetup} title={title} />
       </div>
     </div>
   );

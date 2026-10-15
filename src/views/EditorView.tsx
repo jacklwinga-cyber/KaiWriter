@@ -9,13 +9,14 @@ import {
   exportFilename,
   lexicalToPlainText,
 } from '../lib/exportPlainText';
-import { ProUpgradeModal, VersionHistoryModal, BrandSettingsModal } from '../components/ui/Modals';
+import { ProUpgradeModal, VersionHistoryModal, BrandSettingsModal, HeaderFooterModal } from '../components/ui/Modals';
 import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
 import { ListItemNode, ListNode } from '@lexical/list';
 import { AutoLinkNode, LinkNode } from '@lexical/link';
 
 import { ImageNode } from '../components/editor/nodes/ImageNode';
+import { PageBreakNode } from '../components/editor/nodes/PageBreakNode';
 import { MainLayout } from '../components/layout/MainLayout';
 import { EditorCanvas } from '../components/editor/EditorCanvas';
 import { ToolbarPlugin } from '../components/editor/ToolbarPlugin';
@@ -40,9 +41,10 @@ import {
   requestTemplateAssist,
 } from '../lib/aiTemplateAssist';
 import { getPlainTextFromEditor } from '../lib/plainTextMap';
-import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName } from '../lib/documentStore';
+import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName, updateDocumentPageSetup } from '../lib/documentStore';
 import editorStyles from '../components/editor/Editor.module.css';
 import { DOCUMENT_UPDATED_EVENT, type DocumentUpdatedDetail } from '../lib/syncOutbox';
+import { normalizePageSetup, pagePixels, type PageSetup } from '../lib/pageSetup';
 import {
   clearRecoverySnapshot,
   hasNewerRecovery,
@@ -77,7 +79,7 @@ const editorTheme = {
 
 const EDITOR_NODES = [
   HeadingNode, QuoteNode, ListNode, ListItemNode,
-  LinkNode, AutoLinkNode, TableNode, TableCellNode, TableRowNode, ImageNode,
+  LinkNode, AutoLinkNode, TableNode, TableCellNode, TableRowNode, ImageNode, PageBreakNode,
 ];
 
 function EditorWorkspace({
@@ -86,6 +88,7 @@ function EditorWorkspace({
   initialEditorState,
   initialName,
   initialBranding,
+  initialPageSetup,
   recoveryContent,
   recoveryName,
   onDismissRecovery,
@@ -95,6 +98,7 @@ function EditorWorkspace({
   initialEditorState?: string;
   initialName: string;
   initialBranding?: DocumentBranding;
+  initialPageSetup?: PageSetup;
   recoveryContent?: string | null;
   recoveryName?: string;
   onDismissRecovery?: () => void;
@@ -104,18 +108,21 @@ function EditorWorkspace({
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const [pageSize, setPageSize] = useState('Letter');
-  const [orientation, setOrientation] = useState('Portrait');
-  const [margins, setMargins] = useState('Normal');
+  const [pageSetup, setPageSetup] = useState<PageSetup>(() => normalizePageSetup(initialPageSetup));
+  const updatePageSetup = (patch: Partial<PageSetup>) => {
+    const next = normalizePageSetup({ ...pageSetup, ...patch });
+    setPageSetup(next);
+    void updateDocumentPageSetup(documentId, next);
+  };
+  const { pageSize, orientation, margins } = pageSetup;
+  const setPageSize = (value: string) => updatePageSetup({ pageSize: value as PageSetup['pageSize'] });
+  const setOrientation = (value: string) => updatePageSetup({ orientation: value as PageSetup['orientation'] });
+  const setMargins = (value: string) => updatePageSetup({ margins: value as PageSetup['margins'] });
 
-  const isLandscape = orientation === 'Landscape';
-  const widthInches = pageSize === 'A4' ? 8.27 : 8.5;
-  const heightInches = pageSize === 'A4' ? 11.69 : 11;
-  const actualWidth = isLandscape ? heightInches : widthInches;
-  const actualHeight = isLandscape ? widthInches : heightInches;
-  const pageWidth = `${actualWidth * 96}px`;
-  const pageHeight = `${actualHeight * 96}px`;
-  const pagePadding = margins === 'Narrow' ? '48px' : margins === 'Wide' ? '144px' : '96px';
+  const pagePx = pagePixels(pageSetup);
+  const pageWidth = `${pagePx.width}px`;
+  const pageHeight = `${pagePx.height}px`;
+  const pagePadding = `${pagePx.margin}px`;
 
   const initialConfig = useMemo(() => ({
     namespace: 'KaiWriter',
@@ -134,7 +141,9 @@ function EditorWorkspace({
   useEffect(() => {
     const onDocumentUpdated = (event: Event) => {
       const detail = (event as CustomEvent<DocumentUpdatedDetail>).detail;
-      if (detail.id === documentId) setDocumentName(detail.name);
+      if (detail.id !== documentId) return;
+      setDocumentName(detail.name);
+      setPageSetup(normalizePageSetup(detail.pageSetup));
     };
     window.addEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
     return () => window.removeEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
@@ -166,6 +175,8 @@ function EditorWorkspace({
           pageWidth={pageWidth}
           pageHeight={pageHeight}
           pagePadding={pagePadding}
+          pageSetup={pageSetup}
+          onPageSetupChange={updatePageSetup}
           initialBranding={initialBranding}
           recoveryContent={recoveryContent}
           recoveryName={recoveryName}
@@ -181,8 +192,8 @@ function EditorLayout({
   activeTab, onTabChange, documentName, onNameChange, documentId, templateId,
   pageSize, setPageSize, orientation, setOrientation, margins, setMargins,
   isLeftSidebarOpen, setIsLeftSidebarOpen, isRightSidebarOpen, setIsRightSidebarOpen,
-  isFocusMode, setIsFocusMode, pageWidth, pageHeight, pagePadding, initialBranding,
-  recoveryContent, recoveryName, onDismissRecovery,
+  isFocusMode, setIsFocusMode, pageWidth, pageHeight, pagePadding, pageSetup, onPageSetupChange,
+  initialBranding, recoveryContent, recoveryName, onDismissRecovery,
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -205,6 +216,8 @@ function EditorLayout({
   pageWidth: string;
   pageHeight: string;
   pagePadding: string;
+  pageSetup: PageSetup;
+  onPageSetupChange: (patch: Partial<PageSetup>) => void;
   initialBranding?: DocumentBranding;
   recoveryContent?: string | null;
   recoveryName?: string;
@@ -218,6 +231,7 @@ function EditorLayout({
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isBrandSettingsOpen, setIsBrandSettingsOpen] = useState(false);
+  const [isHeaderFooterOpen, setIsHeaderFooterOpen] = useState(false);
   const [isKaiAssistOpen, setIsKaiAssistOpen] = useState(false);
   const [showAssistBanner, setShowAssistBanner] = useState(true);
   const [placeholderCount, setPlaceholderCount] = useState(0);
@@ -288,7 +302,7 @@ function EditorLayout({
     }
     const { lexicalToDocxBlob } = await import('../lib/exportDocx');
     const json = editor.getEditorState().toJSON();
-    const blob = await lexicalToDocxBlob(json, documentName, branding);
+    const blob = await lexicalToDocxBlob(json, documentName, branding, pageSetup);
     downloadBlob(blob, exportFilename(documentName, 'docx'));
   };
 
@@ -383,6 +397,7 @@ function EditorLayout({
             onOpenWritingSuggestions={() => openWritingAssist('suggestions', true)}
             onOpenKaiAssist={() => setIsKaiAssistOpen(true)}
             onOpenBranding={() => setIsBrandSettingsOpen(true)}
+            onOpenHeaderFooter={() => setIsHeaderFooterOpen(true)}
             isPro={isPro}
             onRequestUpgrade={() => setIsUpgradeOpen(true)}
             isFocusMode={isFocusMode}
@@ -443,7 +458,7 @@ function EditorLayout({
             data-page-stack
           >
             <BrandHeader branding={branding} />
-            <EditorCanvas />
+            <EditorCanvas pageSetup={pageSetup} title={documentName} />
           </div>
         </div>
         <SearchPalette isOpen={isSearchOpen} onClose={closeSearch} />
@@ -452,6 +467,12 @@ function EditorLayout({
       <FindReplacePlugin />
       <KeyboardShortcutsPlugin />
       <ProUpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
+      <HeaderFooterModal
+        isOpen={isHeaderFooterOpen}
+        onClose={() => setIsHeaderFooterOpen(false)}
+        pageSetup={pageSetup}
+        onSave={onPageSetupChange}
+      />
       <VersionHistoryModal
         isOpen={isVersionHistoryOpen}
         onClose={() => setIsVersionHistoryOpen(false)}
@@ -498,6 +519,7 @@ export function EditorView() {
   const [initialEditorState, setInitialEditorState] = useState<string | undefined>();
   const [initialName, setInitialName] = useState('Untitled Document');
   const [initialBranding, setInitialBranding] = useState<DocumentBranding | undefined>();
+  const [initialPageSetup, setInitialPageSetup] = useState<PageSetup | undefined>();
   const [recoveryContent, setRecoveryContent] = useState<string | null>(null);
   const [recoveryName, setRecoveryName] = useState<string>('');
 
@@ -514,6 +536,7 @@ export function EditorView() {
         await mergeCommentsFromCloud(user.id, id);
       }
 
+      setInitialPageSetup(saved?.pageSetup);
       if (saved?.content) {
         setInitialEditorState(saved.content);
         setInitialName(saved.name);
@@ -570,6 +593,7 @@ export function EditorView() {
       initialEditorState={initialEditorState}
       initialName={initialName}
       initialBranding={initialBranding}
+      initialPageSetup={initialPageSetup}
       recoveryContent={recoveryContent}
       recoveryName={recoveryName}
       onDismissRecovery={handleDismissRecovery}

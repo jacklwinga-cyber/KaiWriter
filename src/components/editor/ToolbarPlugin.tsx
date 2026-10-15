@@ -19,6 +19,7 @@ export interface ToolbarPluginProps {
   onOpenWritingSuggestions?: () => void;
   onOpenKaiAssist?: () => void;
   onOpenBranding?: () => void;
+  onOpenHeaderFooter?: () => void;
   isPro?: boolean;
   onRequestUpgrade?: () => void;
   isFocusMode?: boolean;
@@ -40,6 +41,7 @@ export function ToolbarPlugin({
   onOpenWritingSuggestions,
   onOpenKaiAssist,
   onOpenBranding,
+  onOpenHeaderFooter,
   isPro,
   onRequestUpgrade,
   isFocusMode,
@@ -47,7 +49,7 @@ export function ToolbarPlugin({
 }: ToolbarPluginProps) {
   switch (activeTab) {
     case 'Insert':
-      return <InsertRibbon />;
+      return <InsertRibbon onOpenHeaderFooter={onOpenHeaderFooter} />;
     case 'Layout':
       return (
         <LayoutRibbon
