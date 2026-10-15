@@ -32,6 +32,7 @@ function inlineChildren(nodes: SerializedNode[] = []): string {
     .map((node) => {
       if (node.type === 'text') return wrapFormattedText(node.text ?? '', node.format);
       if (node.type === 'linebreak') return '<br />';
+      if (node.type === 'tracked-delete') return '';
       if (node.children?.length) return inlineChildren(node.children);
       return '';
     })

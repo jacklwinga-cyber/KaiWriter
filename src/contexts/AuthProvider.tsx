@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { getSupabase, isSupabaseConfigured } from '../lib/supabase';
-import { fetchSubscriptionDetails, mergeCloudIntoLocal } from '../lib/cloudSync';
+import { fetchSubscriptionDetails, startCloudSync, stopCloudSync } from '../lib/cloudSync';
 import { setCloudSyncUserId } from '../lib/documentStore';
 import {
   dismissLegacyPinProBanner,
@@ -169,6 +169,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const applyPinUser = useCallback((next: AuthUser | null) => {
     setUser(next);
     saveSessionUser(next);
+    stopCloudSync();
     setCloudSyncUserId(null);
     setAccessToken(null);
     setSubscriptionPeriodEnd(null);
@@ -187,7 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     saveSessionUser(mapped);
     setCloudSyncUserId(mapped.id);
     setAccessToken(session?.access_token ?? null);
-    await mergeCloudIntoLocal(mapped.id);
+    await startCloudSync(mapped.id);
   }, []);
 
   useEffect(() => {

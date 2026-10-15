@@ -32,6 +32,7 @@ export function LayoutRibbon({
           <select className={styles.toolbarSelect} value={pageSize} onChange={(e) => setPageSize(e.target.value)}>
             <option value="Letter">Letter (8.5 × 11)</option>
             <option value="A4">A4</option>
+            <option value="Legal">Legal (8.5 × 14)</option>
           </select>
         </div>
         <div className={styles.ribbonColumn}>

@@ -12,7 +12,8 @@
  */
 
 import { openDb } from './idb';
-import { getDocument, saveDocument } from './documentStore';
+import { getCloudSyncUserId, getDocument, saveDocument, saveDocumentLocal } from './documentStore';
+import { enqueueSync } from './syncOutbox';
 
 const STORE = 'folders';
 
@@ -46,6 +47,50 @@ export function createFolderId(): string {
 }
 
 // ---------------------------------------------------------------------------
+// Cloud sync
+// ---------------------------------------------------------------------------
+
+function queueFolderPush(id: string): void {
+  const userId = getCloudSyncUserId();
+  if (!userId) return;
+  enqueueSync(userId, `folder:${id}`);
+  void import('./cloudSync').then((m) => m.flushOutbox(userId));
+}
+
+function putFolder(folder: StoredFolder): Promise<void> {
+  return openDb().then((db) => new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, 'readwrite').objectStore(STORE).put(folder);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+  }));
+}
+
+function removeFolderRecord(id: string): Promise<void> {
+  return openDb().then((db) => new Promise((resolve, reject) => {
+    const req = db.transaction(STORE, 'readwrite').objectStore(STORE).delete(id);
+    req.onerror = () => reject(req.error);
+    req.onsuccess = () => resolve();
+  }));
+}
+
+/** Apply a folder pulled from the cloud. Does not queue an upload. */
+export async function putFolderFromCloud(folder: StoredFolder): Promise<void> {
+  await putFolder(folder);
+}
+
+/**
+ * Apply a folder deletion pulled from the cloud. Documents inside move to root
+ * locally only; the deleting device already uploaded their new state.
+ */
+export async function removeFolderFromCloud(id: string): Promise<void> {
+  const { listAllDocuments } = await import('./documentStore');
+  for (const doc of await listAllDocuments()) {
+    if (doc.folderId === id) await saveDocumentLocal({ ...doc, folderId: undefined });
+  }
+  await removeFolderRecord(id);
+}
+
+// ---------------------------------------------------------------------------
 // CRUD
 // ---------------------------------------------------------------------------
 
@@ -64,7 +109,10 @@ export async function createFolder(name: string, sortOrder?: number): Promise<St
     const tx = db.transaction(STORE, 'readwrite');
     const req = tx.objectStore(STORE).add(folder);
     req.onerror = () => reject(req.error);
-    req.onsuccess = () => resolve(folder);
+    req.onsuccess = () => {
+      queueFolderPush(folder.id);
+      resolve(folder);
+    };
   });
 }
 
@@ -106,12 +154,13 @@ export async function renameFolder(id: string, newName: string): Promise<void> {
   if (!folder) return;
   const db = await openDb();
   const updated: StoredFolder = { ...folder, name: newName.trim() || folder.name, updatedAt: Date.now() };
-  return new Promise((resolve, reject) => {
+  await new Promise<void>((resolve, reject) => {
     const tx = db.transaction(STORE, 'readwrite');
     const req = tx.objectStore(STORE).put(updated);
     req.onerror = () => reject(req.error);
     req.onsuccess = () => resolve();
   });
+  queueFolderPush(id);
 }
 
 /**
@@ -121,23 +170,16 @@ export async function renameFolder(id: string, newName: string): Promise<void> {
  * BEFORE the folder record is removed. This ensures no document is orphaned.
  */
 export async function deleteFolder(id: string): Promise<void> {
-  // 1. Move all documents in this folder to root
-  const { listDocuments } = await import('./documentStore');
-  const docs = await listDocuments();
-  const inFolder = docs.filter((d) => d.folderId === id);
-  for (const doc of inFolder) {
-    const { folderId: _removed, ...withoutFolder } = doc;
-    await saveDocument(withoutFolder);
+  // 1. Move all documents in this folder (trashed ones too) to root
+  const { listAllDocuments } = await import('./documentStore');
+  const docs = await listAllDocuments();
+  for (const doc of docs.filter((d) => d.folderId === id)) {
+    await saveDocument({ ...doc, folderId: undefined, lastModified: Date.now() });
   }
 
-  // 2. Remove the folder record
-  const db = await openDb();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE, 'readwrite');
-    const req = tx.objectStore(STORE).delete(id);
-    req.onerror = () => reject(req.error);
-    req.onsuccess = () => resolve();
-  });
+  // 2. Remove the folder record; the flush uploads a tombstone for other devices
+  await removeFolderRecord(id);
+  queueFolderPush(id);
 }
 
 // ---------------------------------------------------------------------------
@@ -163,11 +205,10 @@ export async function moveDocumentToFolder(
         `moveDocumentToFolder: folder "${targetFolderId}" does not exist.`,
       );
     }
-    await saveDocument({ ...doc, folderId: targetFolderId });
+    await saveDocument({ ...doc, folderId: targetFolderId, lastModified: Date.now() });
   } else {
     // Move to root — remove folderId
-    const { folderId: _removed, ...withoutFolder } = doc;
-    await saveDocument(withoutFolder);
+    await saveDocument({ ...doc, folderId: undefined, lastModified: Date.now() });
   }
 }
 

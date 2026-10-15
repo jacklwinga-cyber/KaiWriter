@@ -7,16 +7,13 @@ import {
 import styles from '../../layout/MainLayout.module.css';
 import { LanguageModal } from '../../ui/LanguageModal';
 import { useEditorPreferences } from '../../../contexts/EditorPreferencesContext';
+import { useEditorChromeOptional } from '../../../contexts/EditorChromeContext';
 
 interface StatusBarPluginProps {
   isFocusMode?: boolean;
   onToggleFocus?: () => void;
 }
 
-function estimatePageCount(rootHeightPx: number, pageHeightPx: number): number {
-  if (!pageHeightPx) return 1;
-  return Math.max(1, Math.ceil(rootHeightPx / pageHeightPx));
-}
 
 export function StatusBarPlugin({ isFocusMode = false, onToggleFocus }: StatusBarPluginProps) {
   const [editor] = useLexicalComposerContext();
@@ -32,7 +29,7 @@ export function StatusBarPlugin({ isFocusMode = false, onToggleFocus }: StatusBa
   } = useEditorPreferences();
 
   const [wordCount, setWordCount] = useState(0);
-  const [pageCount, setPageCount] = useState(1);
+  const pageInfo = useEditorChromeOptional()?.pageInfo ?? { current: 1, total: 1 };
   const [languageOpen, setLanguageOpen] = useState(false);
   const [accessibility, setAccessibility] = useState<'good' | 'review'>('good');
   const sliderRef = useRef<HTMLInputElement>(null);
@@ -45,12 +42,6 @@ export function StatusBarPlugin({ isFocusMode = false, onToggleFocus }: StatusBa
         setWordCount(words.length);
 
         const rootEl = editor.getRootElement();
-        if (rootEl) {
-          const pageEl = rootEl.closest('[data-page-stack]') as HTMLElement | null;
-          const pageHeight = pageEl?.offsetHeight ?? 1056;
-          const contentHeight = rootEl.scrollHeight + 192;
-          setPageCount(estimatePageCount(contentHeight, pageHeight));
-        }
 
         const hasPlaceholder = /\[[^\]]{2,}\]/.test(textContent);
         const hasHeading = rootEl?.querySelector('h1,h2,h3');
@@ -66,7 +57,7 @@ export function StatusBarPlugin({ isFocusMode = false, onToggleFocus }: StatusBa
     <>
       <div className={styles.statusBar}>
         <div className={styles.statusLeft}>
-          <span>Page 1 of {pageCount}</span>
+          <span>Page {pageInfo.current} of {pageInfo.total}</span>
           <span>{wordCount} words</span>
           <button type="button" className={styles.statusBtn} onClick={() => setLanguageOpen(true)}>
             {localeLabel}
