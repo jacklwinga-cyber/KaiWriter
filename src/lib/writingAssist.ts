@@ -6,6 +6,7 @@ import {
   type AssistErrorCode,
   type WritingIssueKind,
 } from '../../supabase/functions/_shared/writingAssistCore';
+import { englishVariantFor, findVariantSpellings } from './englishVariants';
 
 export type { WritingIssueKind };
 
@@ -125,13 +126,40 @@ function snippet(text: string, offset: number, length: number): string {
   return `${prefix}${text.slice(start, end)}${suffix}`;
 }
 
-function localClarityIssues(text: string): WritingIssue[] {
+/** Doubled words that are often correct ("I had had enough", "that that"). */
+const ALLOWED_DOUBLES = new Set(['had', 'that', 'is']);
+
+/**
+ * Offline checks. The style rules are English-only, so for other languages
+ * only checks that don't depend on the language (repeated words) run.
+ */
+export function localClarityIssues(text: string, languageCode = 'en-US'): WritingIssue[] {
   const issues: WritingIssue[] = [];
   let idCounter = 0;
+  const isEnglish = languageCode.toLowerCase().startsWith('en');
 
-  const duplicateWord = /\b([A-Za-z]{3,})\s+\1\b/gi;
+  const variant = englishVariantFor(languageCode);
+  if (variant) {
+    const label = variant === 'en-GB' ? 'UK' : 'US';
+    for (const match of findVariantSpellings(text, variant)) {
+      issues.push({
+        id: `local-variant-${idCounter++}`,
+        kind: 'spelling',
+        message: `${label} English spelling is “${match.replacement}”.`,
+        context: snippet(text, match.offset, match.length),
+        offset: match.offset,
+        length: match.length,
+        original: match.original,
+        suggestions: [match.replacement],
+        source: 'local',
+      });
+    }
+  }
+
+  const duplicateWord = /\b([\p{L}]+)\s+\1\b/giu;
   for (const match of text.matchAll(duplicateWord)) {
     const word = match[1];
+    if (ALLOWED_DOUBLES.has(word.toLowerCase())) continue;
     const offset = match.index ?? 0;
     issues.push({
       id: `local-dup-${idCounter++}`,
@@ -145,6 +173,8 @@ function localClarityIssues(text: string): WritingIssue[] {
       source: 'local',
     });
   }
+
+  if (!isEnglish) return issues;
 
   const sentences = [...text.matchAll(/[^.!?]+[.!?]+|[^.!?]+$/g)];
   for (const sentenceMatch of sentences) {
@@ -399,7 +429,7 @@ export async function analyzeWriting(text: string, options: AnalyzeOptions = {})
   }
 
   if (includeSuggestions) {
-    tasks.push(run('local', async () => ({ issues: localClarityIssues(text) })));
+    tasks.push(run('local', async () => ({ issues: localClarityIssues(text, options.languageCode ?? 'en-US') })));
   }
 
   if (!includeSuggestions) {

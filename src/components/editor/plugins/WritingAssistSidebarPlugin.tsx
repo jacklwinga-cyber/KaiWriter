@@ -23,6 +23,15 @@ import {
   selectPlainTextRangeInEditor,
 } from '../../../lib/plainTextMap';
 import { rebaseRanges, selectNonOverlapping } from '../../../lib/suggestionOffsets';
+import { analyzeReadability, type ReadabilityStats } from '../../../lib/readability';
+import { clearHighlights, paintHighlights } from '../proofreadHighlights';
+import {
+  addDictionaryWord,
+  filterByDictionary,
+  isValidDictionaryWord,
+  loadDictionary,
+  removeDictionaryWord,
+} from '../../../lib/personalDictionary';
 
 /** Remembered choice about sending text to the online checkers (LanguageTool, Kai AI). */
 const ONLINE_CONSENT_KEY = 'kaiwriter-proofread-online-consent';
@@ -63,7 +72,9 @@ export function WritingAssistSidebarPlugin({
   autoRun = false,
 }: WritingAssistSidebarPluginProps) {
   const [editor] = useLexicalComposerContext();
-  const { accessToken } = useAuth();
+  const { accessToken, user } = useAuth();
+  const userId = user?.id ?? null;
+  const [dictionary, setDictionary] = useState<string[]>(() => loadDictionary(userId));
   const { languageToolCode, disableSpellCheck } = useEditorPreferences();
   const [tab, setTab] = useState<AssistTab>(initialTab);
   const [scope, setScope] = useState<CheckScope>('document');
@@ -72,21 +83,44 @@ export function WritingAssistSidebarPlugin({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notices, setNotices] = useState<string[]>([]);
+  const [readability, setReadability] = useState<ReadabilityStats | null>(null);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
   const [consent, setConsent] = useState<OnlineConsent>(readConsent);
   const autoRan = useRef(false);
   const inFlight = useRef<AbortController | null>(null);
 
-  // Cancel a running check when the panel closes.
-  useEffect(() => () => inFlight.current?.abort(), []);
+  // Cancel a running check when the panel closes. If the panel is mounted
+  // again (React StrictMode does this in development), let the automatic
+  // check run again instead of leaving the cancelled one as "done".
+  useEffect(() => () => {
+    inFlight.current?.abort();
+    autoRan.current = false;
+  }, []);
 
   const visibleIssues = useMemo(() => {
-    const filtered = issues.filter((issue) => !dismissed.has(issue.id));
+    const filtered = filterByDictionary(issues.filter((issue) => !dismissed.has(issue.id)), dictionary);
     if (tab === 'grammar') return filtered.filter(isGrammarKind);
     return filtered.filter((issue) => issue.kind === 'style' || issue.kind === 'clarity' || issue.source === 'ai');
-  }, [issues, dismissed, tab]);
+  }, [issues, dismissed, tab, dictionary]);
 
-  const counts = useMemo(() => countIssuesByKind(issues.filter((i) => !dismissed.has(i.id))), [issues, dismissed]);
+  // Underline the issues shown in the panel; repaint as the document changes
+  // (issues whose text was edited stop being underlined).
+  useEffect(() => {
+    paintHighlights(editor, visibleIssues);
+    // Braces matter: Lexical treats a listener's return value as a cleanup function.
+    const unregister = editor.registerUpdateListener(() => {
+      paintHighlights(editor, visibleIssues);
+    });
+    return () => {
+      unregister();
+      clearHighlights();
+    };
+  }, [editor, visibleIssues]);
+
+  const counts = useMemo(
+    () => countIssuesByKind(filterByDictionary(issues.filter((i) => !dismissed.has(i.id)), dictionary)),
+    [issues, dismissed, dictionary],
+  );
 
   const runCheck = useCallback(async (
     nextScope: CheckScope = scope,
@@ -135,6 +169,8 @@ export function WritingAssistSidebarPlugin({
       if (controller.signal.aborted) return;
       setIssues(found.map((issue) => ({ ...issue, id: `${issue.id}@${base}`, offset: issue.offset + base })));
       setNotices(describeSourceProblems(sources));
+      // The readability formulas are only meaningful for English.
+      setReadability(languageToolCode.toLowerCase().startsWith('en') ? analyzeReadability(text) : null);
       setDismissed(new Set());
       setLastChecked(Date.now());
     } catch (err) {
@@ -199,6 +235,9 @@ export function WritingAssistSidebarPlugin({
   const handleFocus = (issue: WritingIssue) => {
     selectPlainTextRangeInEditor(editor, issue.offset, issue.length);
   };
+
+  const handleAddToDictionary = (word: string) => setDictionary(addDictionaryWord(userId, word));
+  const handleRemoveFromDictionary = (word: string) => setDictionary(removeDictionaryWord(userId, word));
 
   const handleDismiss = (issueId: string) => {
     setDismissed((prev) => new Set(prev).add(issueId));
@@ -288,13 +327,13 @@ export function WritingAssistSidebarPlugin({
         </p>
       ))}
       {consent === 'denied' && (
-        <button type="button" className={assistStyles.scopeBtn} style={{ margin: '4px 12px' }} onClick={() => chooseConsent('granted')}>
+        <button type="button" className={assistStyles.scopeBtn} style={{ margin: '4px 12px', flex: 'none', alignSelf: 'flex-start' }} onClick={() => chooseConsent('granted')}>
           Turn on online checks
         </button>
       )}
 
       {tab === 'grammar' && acceptAllCandidates.length > 1 && (
-        <button type="button" className={assistStyles.runBtn} style={{ margin: '4px 12px' }} onClick={handleAcceptAll}>
+        <button type="button" className={assistStyles.runBtn} style={{ margin: '4px 12px', flex: 'none' }} onClick={handleAcceptAll}>
           <CheckCheck size={14} /> Accept all {acceptAllCandidates.length} fixes
         </button>
       )}
@@ -306,6 +345,23 @@ export function WritingAssistSidebarPlugin({
         </div>
       )}
 
+      {tab === 'suggestions' && readability && readability.words > 0 && !loading && (
+        <div className={assistStyles.manualHint} role="group" aria-label="Readability" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.5 }}>
+          <strong>Readability</strong>
+          {readability.readingEase !== null ? (
+            <div>
+              {readability.band}: reading ease {readability.readingEase}/100, grade {readability.gradeLevel}
+            </div>
+          ) : (
+            <div>Add more text (30+ words) for a readability score.</div>
+          )}
+          <div>
+            {readability.words} words · {readability.sentences} sentences · {readability.avgWordsPerSentence} words per sentence
+            {readability.longSentences > 0 ? ` · ${readability.longSentences} long` : ''} · {readability.readingMinutes} min read
+          </div>
+        </div>
+      )}
+
       <div className={assistStyles.issueList}>
         {visibleIssues.map((issue) => (
           <IssueCard
@@ -314,9 +370,35 @@ export function WritingAssistSidebarPlugin({
             onFocus={() => handleFocus(issue)}
             onApply={(suggestion) => handleApply(issue, suggestion)}
             onDismiss={() => handleDismiss(issue.id)}
+            onAddToDictionary={
+              issue.kind === 'spelling' && isValidDictionaryWord(issue.original)
+                ? () => handleAddToDictionary(issue.original)
+                : undefined
+            }
           />
         ))}
       </div>
+
+      {dictionary.length > 0 && (
+        <details className={assistStyles.manualHint} style={{ display: 'block', margin: '8px 12px' }}>
+          <summary style={{ cursor: 'pointer' }}>Personal dictionary ({dictionary.length})</summary>
+          <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }}>
+            {dictionary.map((word) => (
+              <li key={word} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                <span>{word}</span>
+                <button
+                  type="button"
+                  className={assistStyles.dismissBtn}
+                  aria-label={`Remove “${word}” from dictionary`}
+                  onClick={() => handleRemoveFromDictionary(word)}
+                >
+                  <X size={12} />
+                </button>
+              </li>
+            ))}
+          </ul>
+        </details>
+      )}
     </div>
   );
 }
@@ -326,11 +408,13 @@ function IssueCard({
   onFocus,
   onApply,
   onDismiss,
+  onAddToDictionary,
 }: {
   issue: WritingIssue;
   onFocus: () => void;
   onApply: (suggestion: string) => void;
   onDismiss: () => void;
+  onAddToDictionary?: () => void;
 }) {
   return (
     <article className={assistStyles.issueCard}>
@@ -363,6 +447,11 @@ function IssueCard({
           <Lightbulb size={12} /> Revise manually — select the text to edit.
         </p>
       ) : null}
+      {onAddToDictionary && (
+        <button type="button" className={assistStyles.contextBtn} onClick={onAddToDictionary}>
+          Add “{issue.original}” to dictionary
+        </button>
+      )}
     </article>
   );
 }

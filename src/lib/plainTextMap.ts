@@ -140,6 +140,40 @@ export function applyPlainTextEditsInEditor<T extends PlannedEdit>(editor: Lexic
   return applied;
 }
 
+/** A piece of a plain-text range inside one text node. */
+export interface TextNodePiece {
+  key: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * For each range whose text still matches `original`, the text-node pieces it
+ * covers (a range can span several nodes). Ranges whose text changed since
+ * they were computed are left out, so stale suggestions are never highlighted.
+ */
+export function piecesForRanges<T extends { offset: number; length: number; original: string }>(
+  map: PlainTextMap,
+  ranges: T[],
+): Array<{ range: T; pieces: TextNodePiece[] }> {
+  const result: Array<{ range: T; pieces: TextNodePiece[] }> = [];
+  for (const range of ranges) {
+    const end = range.offset + range.length;
+    if (range.length <= 0 || map.text.slice(range.offset, end) !== range.original) continue;
+    const pieces: TextNodePiece[] = [];
+    for (const segment of map.segments) {
+      if (segment.end <= range.offset || segment.start >= end) continue;
+      pieces.push({
+        key: segment.node.getKey(),
+        start: Math.max(range.offset, segment.start) - segment.start,
+        end: Math.min(end, segment.end) - segment.start,
+      });
+    }
+    if (pieces.length) result.push({ range, pieces });
+  }
+  return result;
+}
+
 /** Plain-text offsets of the current selection, or null if nothing is selected. */
 export function getSelectionPlainTextRange(editor: LexicalEditor): { start: number; end: number } | null {
   let range: { start: number; end: number } | null = null;

@@ -5,7 +5,9 @@ import { $createTrackedDeleteNode } from '../../components/editor/nodes/TrackedC
 import {
   applyPlainTextEditInEditor,
   applyPlainTextEditsInEditor,
+  buildPlainTextMap,
   getPlainTextFromEditor,
+  piecesForRanges,
 } from '../plainTextMap';
 
 function editorWith(build: () => void): LexicalEditor {
@@ -72,5 +74,17 @@ describe('plainTextMap edits', () => {
       $getRoot().append(p);
     });
     expect(getPlainTextFromEditor(editor)).toBe('Keep this\n');
+  });
+
+  it('maps highlight ranges onto text nodes and skips stale ones', () => {
+    const editor = editorWith(() => $getRoot().append(paragraph(['We rec', 1], ['ieve it.'])));
+    const result = editor.getEditorState().read(() =>
+      piecesForRanges(buildPlainTextMap(), [
+        { offset: 3, length: 7, original: 'recieve' }, // spans the bold and plain nodes
+        { offset: 0, length: 2, original: 'Us' }, // stale: text is "We"
+      ]),
+    );
+    expect(result).toHaveLength(1);
+    expect(result[0].pieces.map((p) => [p.start, p.end])).toEqual([[3, 6], [0, 4]]);
   });
 });

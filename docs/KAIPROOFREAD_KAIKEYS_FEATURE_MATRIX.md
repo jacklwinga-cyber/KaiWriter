@@ -1,6 +1,6 @@
 # KaiProofread + KaiKeys — feature matrix
 
-_Last updated: 2026-10-25._
+_Last updated: 2026-10-25 (Phase 1 cloud work: dictionary, UK/US spelling, readability, inline highlights)._
 
 Statuses:
 - **Working**: implemented and passing tests in this session.
@@ -20,7 +20,7 @@ audit is in (`scripts/kai-local-audit.sh`).
 | Punctuation | Same as above | LanguageTool PUNCTUATION category |
 | Clarity / conciseness | **Working** | Local rules: wordy phrases, long sentences, repeated words. Tested |
 | Passive voice hints | **Working** | Local rule, capped at 3 per check |
-| Repeated words | **Partially Working** | Only words of 3+ letters ("is is" is missed) |
+| Repeated words | **Working** | Any length, any language; "had had" / "that that" / "is is" allowed. Tested |
 | AI style and clarity suggestions | **Working** except the live model call; that call is **Not Verified** | Edge function error paths run and tested under Deno; the model reply is validated and re-anchored (tested). No API key in the cloud |
 | Explicit error states | **Working** | Each checker reports ok / skipped (with a reason) / error (with a message). The edge function returns coded errors. Tested; browser-checked |
 | Prompt-injection protection | **Working** (mitigation) | Document wrapped in `<document>` with the closing tag neutralised; system prompt treats it as data. Tested |
@@ -32,12 +32,13 @@ audit is in (`scripts/kai-local-audit.sh`).
 | Undo / redo of fixes | **Working** | Lexical history. Accept all is one step |
 | Formatting preservation | **Working** | Replacement keeps the first text node's formatting across node boundaries. Tested |
 | Selection-based checking | **Working** | Selection offsets now mapped into document positions |
-| UK / US English | **Partially Working** | Locale passed to LanguageTool; local rules are English-only and ignore the locale |
-| Multilingual proofreading | **Partially Working** | 10 locales via LanguageTool; local rules and AI are English-only |
-| Personal dictionary / ignore word | **Missing** | |
-| Live (as-you-type) proofreading, inline highlights | **Missing** | On-demand panel only |
+| UK / US English | **Working** | Offline: about 80 unambiguous US/UK spelling pairs, case-preserving, for en-GB/AU/NZ/ZA/IE and en-US (en-CA left alone); meaning-dependent pairs and -ize/-ise excluded. Online: locale passed to LanguageTool. Tested; browser-checked |
+| Multilingual proofreading | **Partially Working** | 10 locales via LanguageTool. English-only local rules are now skipped for other languages (only repeated words run). AI is English-only |
+| Personal dictionary / ignore word | **Working** (per device) | "Add to dictionary" on spelling issues; list with remove; filters spelling issues from every checker; case- and apostrophe-insensitive. Stored per user in localStorage, **not yet synced across devices**. Tested; browser-checked |
+| Inline highlights | **Working** | CSS Custom Highlight API (Chrome/Edge 105+, Safari 17.2+, Firefox 140+): wavy red for errors, dotted blue for style. No document or DOM changes; stale issues aren't underlined; cleared when the panel closes. Browser-checked |
+| Live (as-you-type) proofreading | **Missing** | Checks run on demand |
 | Tone adjustment, rewrite, shorten, expand, summarise | **Missing** in KaiWriter (KaiDocs Pro's `rewrite.ts` is unrelated PDF editing) | |
-| Readability score / writing statistics | **Partially Working** | Word count only (status bar) |
+| Readability score / writing statistics | **Working** (English) | Flesch Reading Ease and band, Flesch–Kincaid grade, words, sentences, words per sentence, long sentences, reading time; shown on the Suggestions tab; hidden for non-English. Tested; browser-checked |
 | AI provider abstraction / model fallback | **Partially Working** | Model configurable via `WRITING_ASSIST_MODEL`; single provider; no fallback chain |
 | Usage limits / token and cost tracking | **Partially Working** | Input cap of 20,000 characters; token usage returned but not stored; no per-user quota |
 | `PremiumProofreadingSettings.tsx` | **Not Verified** | Local only |

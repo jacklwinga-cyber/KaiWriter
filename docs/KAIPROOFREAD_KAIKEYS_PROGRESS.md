@@ -11,7 +11,25 @@ structure is on hold until the local implementations are inspected
 (`KAIPROOFREAD_KAIKEYS_LOCAL_AUDIT.md`). The only code changes are fixes to
 KaiWriter's existing proofreading engine.
 
-## Completed this session
+## Phase 1, cloud part (KaiWriter engine, no new products)
+
+| Feature | Files | Verified by |
+|---|---|---|
+| Personal dictionary | `src/lib/personalDictionary.ts`, Review panel | 5 unit tests; browser: add "gray", its card disappears, word stored, listed with remove |
+| UK/US spelling consistency (offline), locale-aware local rules, better repeated-word check | `src/lib/englishVariants.ts`, `src/lib/writingAssist.ts` | 8 unit tests; browser: en-GB flags favorite/color/gray offline |
+| Readability statistics | `src/lib/readability.ts`, Review panel | 5 unit tests; browser card: "Easy: reading ease 87/100, grade 4.2" |
+| Inline highlights | `src/components/editor/proofreadHighlights.ts`, `piecesForRanges` in `plainTextMap.ts`, `src/index.css` | unit test for the range mapping; browser: 3 underlines, 2 after one fix, 0 after closing the panel |
+
+Bugs found and fixed while testing these:
+- **Readability:** a global regex reused with `.test()` skipped every other sentence.
+- **Readability:** "-ted"/"-ded" endings lost a syllable.
+- **Review panel:** the automatic check that runs on opening it was cancelled by React StrictMode's double mount and never re-ran.
+- **Highlights:** an update listener's return value was treated by Lexical 0.45 as a cleanup function and crashed the panel.
+- **Review panel:** the "Turn on online checks" button stretched to fill the panel.
+
+Tests: **226 / 226 pass**; build passes; lint unchanged (44, all pre-existing).
+
+## Phase 0 work
 
 ### KaiWriter proofreading fixes (defects D1–D14 in the audit)
 
@@ -61,14 +79,16 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 - Repeated-word detection misses 1–2 letter words.
 - The local rules are English-only regardless of the proofing locale.
 - Edge function CORS is `*` (JWT still required).
-- The consent choice is stored per device (localStorage), not per account.
+- The consent choice and the personal dictionary are stored per device (localStorage), not per account.
+- Readability scores use a heuristic syllable count (within about ±1 syllable per word) and English-only formulas.
 
 ## Work split
 
 ### Can be done in the cloud (no owner action)
-- More KaiWriter engine work: personal dictionary / ignore word, locale-aware
-  local rules, inline highlights, live (debounced) checking, readability stats,
-  usage storage and per-user quotas (needs a migration), AI rewrite / tone actions.
+- More KaiWriter engine work: live (debounced, offline-only) checking, clicking
+  an underline to open its card, syncing the personal dictionary across devices
+  (needs a migration), usage storage and per-user quotas (needs a migration),
+  AI rewrite / tone actions (live model calls can't be tested here).
 - A Chromium / Firefox extension (build, load into headless Chromium, end-to-end
   tests), **once the local KaiBrowser code shows whether one exists**.
 - Kotlin keyboard logic (autocorrect, prediction, dictionary) as plain JVM code
