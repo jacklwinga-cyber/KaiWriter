@@ -502,7 +502,10 @@ function EditorLayout({
         userId={user?.id ?? null}
       />
       <FindReplacePlugin />
-      <KeyboardShortcutsPlugin />
+      <KeyboardShortcutsPlugin
+        onProofread={() => openWritingAssist('grammar', true)}
+        onRewrite={() => openWritingAssist('rewrite', false)}
+      />
       <ProUpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
       <HeaderFooterModal
         isOpen={isHeaderFooterOpen}

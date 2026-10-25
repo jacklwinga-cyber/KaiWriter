@@ -38,7 +38,7 @@ export function ReviewRibbon({
           <Sparkles size={24} />
           <span>Kai Assist</span>
         </button>
-        <button type="button" className={styles.largeToolBtn} onClick={onProofread}>
+        <button type="button" className={styles.largeToolBtn} onClick={onProofread} title="Spelling & Grammar (F7)">
           <SpellCheck size={24} />
           <span>Spelling &amp; Grammar</span>
         </button>
@@ -46,7 +46,7 @@ export function ReviewRibbon({
           <Lightbulb size={24} />
           <span>Writing Suggestions</span>
         </button>
-        <button type="button" className={styles.largeToolBtn} onClick={onRewrite} title="Rewrite the selected text with AI">
+        <button type="button" className={styles.largeToolBtn} onClick={onRewrite} title="Rewrite the selected text with AI (Alt+F7)">
           <WandSparkles size={24} />
           <span>Rewrite</span>
         </button>

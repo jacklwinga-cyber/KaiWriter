@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { analyzeWriting, describeSourceProblems, MAX_LANGUAGE_TOOL_CHARS } from '../writingAssist';
+import { analyzeWriting, describeSourceProblems, localClarityIssues, MAX_LANGUAGE_TOOL_CHARS } from '../writingAssist';
 
 const LT = 'https://api.languagetool.org/v2/check';
 const AI = 'https://example.supabase.co/functions/v1/writing-assist';
@@ -128,5 +128,23 @@ describe('analyzeWriting', () => {
     const pending = analyzeWriting('Hello there.', { allowRemote: true, signal: controller.signal });
     controller.abort();
     await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+});
+
+describe('localClarityIssues offsets', () => {
+  it('points every offline finding at exactly its text', () => {
+    const text = [
+      'Its a test , i think. he don\'t know.Then a apple, however we left.. Send e-mail or email.',
+      ' This is a very long sentence that goes on and on without any break at all because the writer kept adding more and more words to it until it became hard to read for anyone.',
+      'We will utilize the the plan in order to win.',
+    ].join('\n');
+    const issues = localClarityIssues(text, 'en-GB');
+    expect(issues.length).toBeGreaterThan(8);
+    for (const issue of issues) expect(text.slice(issue.offset, issue.offset + issue.length), issue.id).toBe(issue.original);
+    expect(issues.some((i) => /run-on/.test(i.message))).toBe(true);
+  });
+
+  it('runs only language-neutral checks for other languages', () => {
+    expect(localClarityIssues('i think a apple , ok.', 'de-DE')).toEqual([]);
   });
 });

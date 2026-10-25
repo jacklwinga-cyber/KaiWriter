@@ -7,6 +7,7 @@ import {
   type WritingIssueKind,
 } from '../../supabase/functions/_shared/writingAssistCore';
 import { englishVariantFor, findVariantSpellings } from './englishVariants';
+import { englishGrammarFindings } from './grammarRules';
 
 export type { WritingIssueKind };
 
@@ -176,16 +177,33 @@ export function localClarityIssues(text: string, languageCode = 'en-US'): Writin
 
   if (!isEnglish) return issues;
 
+  for (const finding of englishGrammarFindings(text)) {
+    issues.push({
+      id: `local-${finding.rule}-${idCounter++}`,
+      kind: finding.kind,
+      message: finding.message,
+      context: snippet(text, finding.offset, finding.length),
+      offset: finding.offset,
+      length: finding.length,
+      original: finding.original,
+      suggestions: finding.suggestions,
+      source: 'local',
+    });
+  }
+
   const sentences = [...text.matchAll(/[^.!?]+[.!?]+|[^.!?]+$/g)];
   for (const sentenceMatch of sentences) {
     const sentence = sentenceMatch[0].trim();
     const wordCount = sentence.split(/\s+/).filter(Boolean).length;
     if (wordCount < 35) continue;
-    const offset = sentenceMatch.index ?? 0;
+    const offset = (sentenceMatch.index ?? 0) + (sentenceMatch[0].length - sentenceMatch[0].trimStart().length);
+    const unpunctuated = !/[,;:—–()]/.test(sentence);
     issues.push({
       id: `local-long-${idCounter++}`,
       kind: 'clarity',
-      message: `Long sentence (${wordCount} words). Consider splitting it for readability.`,
+      message: unpunctuated
+        ? `Long sentence (${wordCount} words) with no commas or other breaks: it may be a run-on. Consider splitting it.`
+        : `Long sentence (${wordCount} words). Consider splitting it for readability.`,
       context: snippet(text, offset, sentence.length),
       offset,
       length: sentence.length,

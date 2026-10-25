@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Monitor, Moon, Sun, Sparkles, Check, History, Lock, RotateCcw, Palette, Mail, Cloud, FlaskConical } from 'lucide-react';
+import { X, User, Monitor, Moon, Sun, Sparkles, Check, History, Lock, RotateCcw, Trash2, Palette, Mail, Cloud, FlaskConical } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeProvider';
 import type { ThemeMode } from '../../contexts/ThemeProvider';
 import { useAuth } from '../../contexts/AuthProvider';
@@ -12,7 +12,19 @@ import {
   simulateLegacyPinProTrial,
   type LegacyPinProQaStatus,
 } from '../../lib/legacyPinPro';
-import { listVersions, saveVersion, type DocumentVersion } from '../../lib/versionStore';
+import {
+  AUTO_INTERVAL_MS,
+  deleteVersion,
+  deleteVersionsForDocument,
+  getRetention,
+  listVersions,
+  RETENTION_AGE_CHOICES,
+  RETENTION_VERSION_CHOICES,
+  saveVersion,
+  setRetention,
+  type DocumentVersion,
+  type HistoryRetention,
+} from '../../lib/versionStore';
 import type { DocumentBranding } from '../../lib/branding';
 import { DEFAULT_BRAND_COLOR } from '../../lib/branding';
 
@@ -644,6 +656,9 @@ export function VersionHistoryModal({
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [retention, setRetentionState] = useState<HistoryRetention>(getRetention);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const autoMinutes = Math.round(AUTO_INTERVAL_MS / 60_000);
 
   useEffect(() => {
     if (!isOpen || !isPro) return;
@@ -663,6 +678,32 @@ export function VersionHistoryModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  const changeRetention = (next: HistoryRetention) => {
+    setRetentionState(next);
+    void (async () => {
+      const removed = await setRetention(next);
+      setVersions(await listVersions(documentId));
+      setHistoryNotice(removed ? `Deleted ${removed} older version${removed === 1 ? '' : 's'} on this device.` : 'Saved.');
+    })();
+  };
+
+  const handleDelete = (version: DocumentVersion) => {
+    if (!window.confirm(`Delete the version from ${new Date(version.createdAt).toLocaleString()}? This can't be undone.`)) return;
+    void (async () => {
+      await deleteVersion(version.id);
+      setVersions(await listVersions(documentId));
+    })();
+  };
+
+  const handleDeleteAll = () => {
+    if (!window.confirm(`Delete all ${versions.length} saved versions of "${documentName}" on this device? The document itself is kept.`)) return;
+    void (async () => {
+      await deleteVersionsForDocument(documentId);
+      setVersions([]);
+      setHistoryNotice('Deleted all versions of this document on this device.');
+    })();
   };
 
   const handleRestore = (version: DocumentVersion) => {
@@ -687,7 +728,7 @@ export function VersionHistoryModal({
           {!isPro ? (
             <>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Version history is a Pro feature. Restore previous drafts and keep automatic snapshots every 15 minutes.
+                Version history is a Pro feature. Restore previous drafts and keep automatic snapshots every {autoMinutes} minutes.
               </p>
               <button type="button" style={{ ...primaryBtnStyle, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }} onClick={onRequestUpgrade}>
                 <Lock size={16} /> Upgrade to Pro
@@ -705,7 +746,11 @@ export function VersionHistoryModal({
               </button>
               {loading && <p style={{ color: 'var(--text-secondary)' }}>Loading versions…</p>}
               {!loading && versions.length === 0 && (
-                <p style={{ color: 'var(--text-secondary)' }}>No versions yet. Auto-snapshots save every 15 minutes while you edit.</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  {retention.autoSnapshots
+                    ? `No versions yet. Automatic snapshots are saved every ${autoMinutes} minutes while you edit.`
+                    : 'No versions yet. Automatic snapshots are off; use “Save current version”.'}
+                </p>
               )}
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {versions.map((v) => (
@@ -725,16 +770,70 @@ export function VersionHistoryModal({
                         {new Date(v.createdAt).toLocaleString()} · {v.source === 'manual' ? 'Manual' : 'Auto'}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      style={{ ...actionBtnStyle, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      onClick={() => handleRestore(v)}
-                    >
-                      <RotateCcw size={14} /> Restore
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        style={{ ...actionBtnStyle, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => handleRestore(v)}
+                      >
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete version from ${new Date(v.createdAt).toLocaleString()}`}
+                        style={{ ...actionBtnStyle, padding: '6px 8px', display: 'flex', alignItems: 'center' }}
+                        onClick={() => handleDelete(v)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+              <details style={{ marginTop: '16px', fontSize: '0.85rem' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 500 }}>History settings</summary>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0' }}>
+                  Versions are stored only on this device. These settings apply to all your documents here.
+                </p>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  Keep up to
+                  <select
+                    value={retention.maxVersions}
+                    onChange={(e) => changeRetention({ ...retention, maxVersions: Number(e.target.value) })}
+                  >
+                    {RETENTION_VERSION_CHOICES.map((n) => <option key={n} value={n}>{n} versions per document</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  Delete automatic snapshots
+                  <select
+                    value={retention.maxAgeDays}
+                    onChange={(e) => changeRetention({ ...retention, maxAgeDays: Number(e.target.value) })}
+                  >
+                    {RETENTION_AGE_CHOICES.map((d) => <option key={d} value={d}>{d === 0 ? 'Never' : `After ${d} days`}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={retention.autoSnapshots}
+                    onChange={(e) => changeRetention({ ...retention, autoSnapshots: e.target.checked })}
+                  />
+                  Take automatic snapshots every {autoMinutes} minutes while editing
+                </label>
+                <p style={{ color: 'var(--text-secondary)', margin: '6px 0' }}>
+                  Versions you save yourself are kept until you delete them or the version limit is reached.
+                </p>
+                <button
+                  type="button"
+                  disabled={versions.length === 0}
+                  style={{ ...actionBtnStyle, width: '100%', marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  onClick={handleDeleteAll}
+                >
+                  <Trash2 size={14} /> Delete all versions of this document
+                </button>
+                {historyNotice && <p role="status" style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>{historyNotice}</p>}
+              </details>
             </>
           )}
         </div>

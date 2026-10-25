@@ -7,6 +7,21 @@ _Last updated: 2026-10-25._
 **Phase 2 (core engine), cloud part, inside KaiWriter.** Phase 0's local side is still
 waiting on the owner; no new products have been created.
 
+## Phase 2 (continued): offline grammar, shortcuts, history retention
+
+| Change | Files | Verified by |
+|---|---|---|
+| Offline English rules: a/an, agreement, could-of, than/then, its/it’s, punctuation and spacing, capitalisation, comma splices, likely fragments, inconsistent spellings; run-on hint on long unpunctuated sentences | `src/lib/grammarRules.ts` (new), `src/lib/writingAssist.ts` | 17 tests, each rule with errors it must catch and correct sentences it must leave alone; offsets checked; 35,000 characters in well under 500 ms. Real prose (GPL, Apache, GFDL, six READMEs, these docs; about 100,000 characters): no false alarms, after fixes. Browser: underlined live, fix cards apply |
+| F7 and Alt/Option+F7 | `KeyboardShortcutsPlugin.tsx`, `EditorView.tsx`, ribbon tooltips | browser |
+| Version history retention: limit, age for automatic snapshots, snapshots on/off, delete one / all | `src/lib/versionStore.ts`, Version History dialog in `Modals.tsx` | 6 tests (IndexedDB) |
+
+Bugs found and fixed while doing this:
+- The long-sentence warning pointed one character early after a space (wrong underline and jump-to).
+- The Version History text said automatic snapshots happen every 15 minutes; they happen every 5.
+- First drafts of the rules flagged correct writing. The corpus run and the tests caught: “a united front”, “an X-ray”, “a NATO member”, “the might of”, “in May of 2020”, “could of course”, “things were better then”, “your welcome pack”, “Part I is”, “however it turns out”, “Since 2010 we have grown”, “re-sign”/“resign”, two spaces after a full stop, and text inside URLs.
+
+Tests: **304 / 304 pass**; build passes; lint unchanged (44, all pre-existing).
+
 ## Phase 2: AI rewriting, provider abstraction, usage limits
 
 | Change | Files | Verified by |
@@ -130,8 +145,8 @@ local KaiProofread/KaiKeys code would risk duplicating it.
   model is retired, the function now returns a visible `not_configured` error
   instead of silently returning nothing. **Owner decision:** whether to switch
   the model (set `WRITING_ASSIST_MODEL`, or change the default).
-- Repeated-word detection misses 1–2 letter words.
-- The local rules are English-only regardless of the proofing locale.
+- The offline grammar rules are English-only (other languages get only the repeated-word check).
+- Fragment and comma-splice detection are heuristics, not a parser.
 - Edge function CORS is `*` (a valid sign-in is still required).
 - `template-assist` (Kai Assist template filling) still calls the model directly, with no usage limit or consent step.
 - The online-checks consent choice is stored per device (localStorage), not per account. (The personal dictionary now syncs for signed-in users.)
@@ -140,8 +155,8 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 ## Work split
 
 ### Can be done in the cloud (no owner action)
-- More KaiWriter engine work: agreement, fragment and run-on detection; writing
-  history with user-controlled retention; cost tracking.
+- More KaiWriter engine work: cost tracking (needs a price table), syncing history
+  settings and consent per account.
 - A Chromium / Firefox extension (build, load into headless Chromium, end-to-end
   tests), **once the local KaiBrowser code shows whether one exists**.
 - Kotlin keyboard logic (autocorrect, prediction, dictionary) as plain JVM code
