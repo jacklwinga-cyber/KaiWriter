@@ -457,3 +457,56 @@
   color: #ff8a80;
   text-decoration-color: #ff8a80;
 }
+
+/* ── Live proofreading card ───────────────────────────────────────────────── */
+
+.liveCard {
+  position: fixed;
+  z-index: 1200;
+  width: 280px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  font-size: 12px;
+}
+
+.liveCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.liveCardHeader button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.liveCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.liveCardActions button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.liveCardActions .liveCardFix {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  font-weight: 600;
+}

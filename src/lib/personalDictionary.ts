@@ -5,6 +5,8 @@
  */
 
 const KEY_PREFIX = 'kaiwriter-personal-dictionary:';
+/** Fired on window when the dictionary changes, so every open view can refresh. */
+export const DICTIONARY_CHANGED_EVENT = 'kaiwriter:dictionary-changed';
 export const MAX_WORD_LENGTH = 64;
 export const MAX_WORDS = 5_000;
 
@@ -43,6 +45,7 @@ function save(userId: string | null | undefined, words: string[]): void {
   } catch {
     // storage full or unavailable: the change lasts for this session only
   }
+  if (typeof window !== 'undefined') window.dispatchEvent(new CustomEvent(DICTIONARY_CHANGED_EVENT));
 }
 
 /** Add a word; returns the updated list (unchanged if invalid, duplicate or full). */

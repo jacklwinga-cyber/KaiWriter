@@ -157,12 +157,21 @@ export function piecesForRanges<T extends { offset: number; length: number; orig
   ranges: T[],
 ): Array<{ range: T; pieces: TextNodePiece[] }> {
   const result: Array<{ range: T; pieces: TextNodePiece[] }> = [];
+  const { segments } = map;
   for (const range of ranges) {
     const end = range.offset + range.length;
     if (range.length <= 0 || map.text.slice(range.offset, end) !== range.original) continue;
+    // Segments are in document order: binary-search the first one ending after the range start.
+    let lo = 0;
+    let hi = segments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (segments[mid].end <= range.offset) lo = mid + 1;
+      else hi = mid;
+    }
     const pieces: TextNodePiece[] = [];
-    for (const segment of map.segments) {
-      if (segment.end <= range.offset || segment.start >= end) continue;
+    for (let i = lo; i < segments.length && segments[i].start < end; i++) {
+      const segment = segments[i];
       pieces.push({
         key: segment.node.getKey(),
         start: Math.max(range.offset, segment.start) - segment.start,
@@ -172,6 +181,18 @@ export function piecesForRanges<T extends { offset: number; length: number; orig
     if (pieces.length) result.push({ range, pieces });
   }
   return result;
+}
+
+/** Plain-text offset of a collapsed caret, or null. */
+export function getCaretPlainOffset(editor: LexicalEditor): number | null {
+  let offset: number | null = null;
+  editor.getEditorState().read(() => {
+    const selection = $getSelection();
+    if (!$isRangeSelection(selection) || !selection.isCollapsed() || selection.anchor.type !== 'text') return;
+    const segment = buildPlainTextMap().segments.find((s) => s.node.getKey() === selection.anchor.key);
+    if (segment) offset = segment.start + selection.anchor.offset;
+  });
+  return offset;
 }
 
 /** Plain-text offsets of the current selection, or null if nothing is selected. */

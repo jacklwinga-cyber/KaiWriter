@@ -29,6 +29,21 @@ Bugs found and fixed while testing these:
 
 Tests: **226 / 226 pass**; build passes; lint unchanged (44, all pre-existing).
 
+## Live checking as you type
+
+| Feature | Files | Verified by |
+|---|---|---|
+| Offline live proofreading with click-to-fix cards | `src/components/editor/plugins/LiveProofreadPlugin.tsx`, `src/lib/liveProofread.ts`, `getCaretPlainOffset` in `plainTextMap.ts` | 4 unit tests; browser: underlines after the pause with the panel closed, card fix / Ignore / Add to dictionary / Escape, paused while the panel is open, off switch remembered, no outbound requests carrying text |
+| Live Check switch | Review ribbon, `liveProofreading` preference | browser |
+| Dictionary kept in sync between the live card and the panel | `DICTIONARY_CHANGED_EVENT` in `personalDictionary.ts` | browser |
+| Underline performance | `proofreadHighlights.ts` (near-viewport only, static ranges, repaint on scroll), binary search in `piecesForRanges` | measured: per-keystroke cost from about +110 ms to +0 ms on realistic text, +26 ms on a worst case; underlines follow scrolling |
+
+Bugs found while measuring: repainting every underline on every keystroke, and
+unbounded underline counts, made typing about 5× slower on a 30,000-character
+document. Fixed as above.
+
+Tests: **230 / 230 pass**; build passes; lint unchanged.
+
 ## Phase 0 work
 
 ### KaiWriter proofreading fixes (defects D1–D14 in the audit)
@@ -85,8 +100,7 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 ## Work split
 
 ### Can be done in the cloud (no owner action)
-- More KaiWriter engine work: live (debounced, offline-only) checking, clicking
-  an underline to open its card, syncing the personal dictionary across devices
+- More KaiWriter engine work: syncing the personal dictionary across devices
   (needs a migration), usage storage and per-user quotas (needs a migration),
   AI rewrite / tone actions (live model calls can't be tested here).
 - A Chromium / Firefox extension (build, load into headless Chromium, end-to-end

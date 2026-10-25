@@ -24,9 +24,10 @@ import {
 } from '../../../lib/plainTextMap';
 import { rebaseRanges, selectNonOverlapping } from '../../../lib/suggestionOffsets';
 import { analyzeReadability, type ReadabilityStats } from '../../../lib/readability';
-import { clearHighlights, paintHighlights } from '../proofreadHighlights';
+import { clearHighlights, onScrollRepaint, paintHighlights } from '../proofreadHighlights';
 import {
   addDictionaryWord,
+  DICTIONARY_CHANGED_EVENT,
   filterByDictionary,
   isValidDictionaryWord,
   loadDictionary,
@@ -89,6 +90,13 @@ export function WritingAssistSidebarPlugin({
   const autoRan = useRef(false);
   const inFlight = useRef<AbortController | null>(null);
 
+  // Stay in sync with dictionary changes made elsewhere (e.g. the live-check card).
+  useEffect(() => {
+    const reload = () => setDictionary(loadDictionary(userId));
+    window.addEventListener(DICTIONARY_CHANGED_EVENT, reload);
+    return () => window.removeEventListener(DICTIONARY_CHANGED_EVENT, reload);
+  }, [userId]);
+
   // Cancel a running check when the panel closes. If the panel is mounted
   // again (React StrictMode does this in development), let the automatic
   // check run again instead of leaving the cancelled one as "done".
@@ -107,12 +115,18 @@ export function WritingAssistSidebarPlugin({
   // (issues whose text was edited stop being underlined).
   useEffect(() => {
     paintHighlights(editor, visibleIssues);
+    // Repaint shortly after edits stop (repainting per keystroke is slow on long documents).
     // Braces matter: Lexical treats a listener's return value as a cleanup function.
+    let timer: ReturnType<typeof setTimeout> | null = null;
     const unregister = editor.registerUpdateListener(() => {
-      paintHighlights(editor, visibleIssues);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => paintHighlights(editor, visibleIssues), 150);
     });
+    const stopScroll = onScrollRepaint(() => paintHighlights(editor, visibleIssues));
     return () => {
+      if (timer) clearTimeout(timer);
       unregister();
+      stopScroll();
       clearHighlights();
     };
   }, [editor, visibleIssues]);

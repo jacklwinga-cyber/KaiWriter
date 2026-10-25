@@ -19,6 +19,7 @@ interface EditorPreferencesContextValue extends EditorPreferences {
   setViewMode: (mode: EditorViewMode) => void;
   setDetectLanguageAutomatically: (value: boolean) => void;
   setDisableSpellCheck: (value: boolean) => void;
+  setLiveProofreading: (value: boolean) => void;
 }
 
 const EditorPreferencesContext = createContext<EditorPreferencesContextValue | null>(null);
@@ -63,6 +64,10 @@ export function EditorPreferencesProvider({ children }: { children: React.ReactN
     persist({ ...prefs, disableSpellCheck });
   }, [persist, prefs]);
 
+  const setLiveProofreading = useCallback((liveProofreading: boolean) => {
+    persist({ ...prefs, liveProofreading });
+  }, [persist, prefs]);
+
   const locale = getLocaleById(prefs.localeId);
 
   const value = useMemo(
@@ -78,6 +83,7 @@ export function EditorPreferencesProvider({ children }: { children: React.ReactN
       setViewMode,
       setDetectLanguageAutomatically,
       setDisableSpellCheck,
+      setLiveProofreading,
     }),
     [
       prefs,
@@ -91,6 +97,7 @@ export function EditorPreferencesProvider({ children }: { children: React.ReactN
       setViewMode,
       setDetectLanguageAutomatically,
       setDisableSpellCheck,
+      setLiveProofreading,
     ],
   );
 

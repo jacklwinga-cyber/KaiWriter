@@ -20,6 +20,7 @@ import { StatusBarPlugin } from '../components/editor/plugins/StatusBarPlugin';
 import { NavigationSidebarPlugin } from '../components/editor/plugins/NavigationSidebarPlugin';
 import { DocumentSavePlugin } from '../components/editor/plugins/DocumentSavePlugin';
 import { TrackChangesPlugin } from '../components/editor/plugins/TrackChangesPlugin';
+import { LiveProofreadPlugin } from '../components/editor/plugins/LiveProofreadPlugin';
 import { KeyboardShortcutsPlugin } from '../components/editor/plugins/KeyboardShortcutsPlugin';
 import { EditorChromeProvider, useEditorChrome } from '../contexts/EditorChromeContext';
 import { CommentsSidebarPlugin } from '../components/editor/plugins/CommentsSidebarPlugin';
@@ -216,7 +217,7 @@ function EditorLayout({
 }) {
   const [editor] = useLexicalComposerContext();
   const { isPro, accessToken, user } = useAuth();
-  const { zoom, viewMode } = useEditorPreferences();
+  const { zoom, viewMode, liveProofreading, setLiveProofreading, disableSpellCheck, languageToolCode } = useEditorPreferences();
   const { canUndo, canRedo, undo, redo, saveStatus, setSaveStatus, syncStatus } = useEditorChrome();
   const [isSearchOpen, , closeSearch] = useSearchPalette();
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
@@ -422,6 +423,8 @@ function EditorLayout({
             trackChanges={trackChanges}
             onToggleTrackChanges={toggleTrackChanges}
             changeCount={changeCount}
+            liveProofreading={liveProofreading}
+            onToggleLiveProofreading={() => setLiveProofreading(!liveProofreading)}
             isPro={isPro}
             onRequestUpgrade={() => setIsUpgradeOpen(true)}
             isFocusMode={isFocusMode}
@@ -489,6 +492,12 @@ function EditorLayout({
       </MainLayout>
       <DocumentSavePlugin documentId={documentId} documentName={documentName} templateId={templateId} isPro={isPro} branding={branding} />
       <TrackChangesPlugin enabled={trackChanges} author={user?.displayName || 'Guest'} onChangeCount={setChangeCount} />
+      <LiveProofreadPlugin
+        // Paused while the Review panel shows its own (fuller) results.
+        enabled={liveProofreading && !disableSpellCheck && !(leftPane === 'writing' && isLeftSidebarOpen && !isFocusMode)}
+        languageCode={languageToolCode}
+        userId={user?.id ?? null}
+      />
       <FindReplacePlugin />
       <KeyboardShortcutsPlugin />
       <ProUpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />

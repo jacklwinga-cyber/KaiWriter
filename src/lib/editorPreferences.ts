@@ -33,6 +33,8 @@ export interface EditorPreferences {
   viewMode: EditorViewMode;
   detectLanguageAutomatically: boolean;
   disableSpellCheck: boolean;
+  /** Offline proofreading as you type (underlines; nothing leaves the device). */
+  liveProofreading: boolean;
 }
 
 export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
@@ -41,6 +43,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
   viewMode: 'print',
   detectLanguageAutomatically: true,
   disableSpellCheck: false,
+  liveProofreading: true,
 };
 
 export function loadEditorPreferences(): EditorPreferences {

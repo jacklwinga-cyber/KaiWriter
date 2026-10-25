@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  SpellCheck, Lightbulb, BookOpenCheck, Sparkles, FileDiff, Check, X, CheckCheck, XCircle, ChevronLeft, ChevronRight,
+  SpellCheck, Lightbulb, BookOpenCheck, Sparkles, FileDiff, Zap, Check, X, CheckCheck, XCircle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
 import { ACCEPT_CHANGE_COMMAND, NAVIGATE_CHANGE_COMMAND, REJECT_CHANGE_COMMAND } from '../trackChanges';
@@ -12,6 +12,8 @@ interface ReviewRibbonProps {
   trackChanges?: boolean;
   onToggleTrackChanges?: () => void;
   changeCount?: number;
+  liveProofreading?: boolean;
+  onToggleLiveProofreading?: () => void;
 }
 
 export function ReviewRibbon({
@@ -21,6 +23,8 @@ export function ReviewRibbon({
   trackChanges = false,
   onToggleTrackChanges,
   changeCount = 0,
+  liveProofreading = false,
+  onToggleLiveProofreading,
 }: ReviewRibbonProps) {
   const [editor] = useLexicalComposerContext();
   const noChanges = changeCount === 0;
@@ -43,6 +47,17 @@ export function ReviewRibbon({
         <button type="button" className={styles.largeToolBtn} onClick={onProofread}>
           <BookOpenCheck size={24} />
           <span>Proofread</span>
+        </button>
+        <button
+          type="button"
+          className={styles.largeToolBtn}
+          onClick={onToggleLiveProofreading}
+          aria-pressed={liveProofreading}
+          title="Underline issues as you type, using offline checks only (nothing leaves this device)"
+          style={liveProofreading ? { background: 'var(--brand-primary)', color: '#fff', borderRadius: '6px' } : undefined}
+        >
+          <Zap size={24} />
+          <span>Live Check{liveProofreading ? ': On' : ': Off'}</span>
         </button>
       </div>
 

@@ -23,6 +23,8 @@ export interface ToolbarPluginProps {
   trackChanges?: boolean;
   onToggleTrackChanges?: () => void;
   changeCount?: number;
+  liveProofreading?: boolean;
+  onToggleLiveProofreading?: () => void;
   isPro?: boolean;
   onRequestUpgrade?: () => void;
   isFocusMode?: boolean;
@@ -48,6 +50,8 @@ export function ToolbarPlugin({
   trackChanges,
   onToggleTrackChanges,
   changeCount,
+  liveProofreading,
+  onToggleLiveProofreading,
   isPro,
   onRequestUpgrade,
   isFocusMode,
@@ -79,6 +83,8 @@ export function ToolbarPlugin({
           trackChanges={trackChanges}
           onToggleTrackChanges={onToggleTrackChanges}
           changeCount={changeCount}
+          liveProofreading={liveProofreading}
+          onToggleLiveProofreading={onToggleLiveProofreading}
         />
       );
     case 'View':
