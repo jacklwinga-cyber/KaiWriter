@@ -45,7 +45,7 @@ export interface WritingAnalysis {
   sources: SourceStatus[];
 }
 
-class SourceError extends Error {
+export class SourceError extends Error {
   readonly code: Extract<SourceStatus, { state: 'error' }>['code'];
   constructor(code: SourceError['code'], message: string) {
     super(message);
@@ -53,12 +53,12 @@ class SourceError extends Error {
   }
 }
 
-function isAbort(err: unknown): boolean {
+export function isAbort(err: unknown): boolean {
   return err instanceof DOMException && err.name === 'AbortError';
 }
 
 /** fetch with a timeout that also honours the caller's abort signal. */
-async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
+export async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs: number, signal?: AbortSignal): Promise<Response> {
   const controller = new AbortController();
   let timedOut = false;
   const timer = setTimeout(() => {

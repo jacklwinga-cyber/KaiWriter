@@ -17,6 +17,7 @@ export interface ToolbarPluginProps {
   onOpenComments?: () => void;
   onOpenProofread?: () => void;
   onOpenWritingSuggestions?: () => void;
+  onOpenRewrite?: () => void;
   onOpenKaiAssist?: () => void;
   onOpenBranding?: () => void;
   onOpenHeaderFooter?: () => void;
@@ -44,6 +45,7 @@ export function ToolbarPlugin({
   onOpenComments,
   onOpenProofread,
   onOpenWritingSuggestions,
+  onOpenRewrite,
   onOpenKaiAssist,
   onOpenBranding,
   onOpenHeaderFooter,
@@ -79,6 +81,7 @@ export function ToolbarPlugin({
         <ReviewRibbon
           onProofread={onOpenProofread}
           onWritingSuggestions={onOpenWritingSuggestions}
+          onRewrite={onOpenRewrite}
           onKaiAssist={onOpenKaiAssist}
           trackChanges={trackChanges}
           onToggleTrackChanges={onToggleTrackChanges}

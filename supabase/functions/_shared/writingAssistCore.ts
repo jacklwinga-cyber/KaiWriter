@@ -39,7 +39,9 @@ export type AssistErrorCode =
   | 'timeout'
   | 'refused'
   | 'invalid_response'
-  | 'upstream_error';
+  | 'upstream_error'
+  | 'quota_exceeded'
+  | 'usage_unavailable';
 
 export const ASSIST_ERROR_STATUS: Record<AssistErrorCode, number> = {
   bad_request: 400,
@@ -51,6 +53,8 @@ export const ASSIST_ERROR_STATUS: Record<AssistErrorCode, number> = {
   refused: 422,
   invalid_response: 502,
   upstream_error: 502,
+  quota_exceeded: 429,
+  usage_unavailable: 503,
 };
 
 /** User-safe messages: no provider names, keys, status bodies or document text. */
@@ -64,6 +68,8 @@ export const ASSIST_ERROR_MESSAGES: Record<AssistErrorCode, string> = {
   refused: 'AI suggestions could not review this text.',
   invalid_response: 'AI suggestions returned an unreadable result. Try again.',
   upstream_error: 'AI suggestions are temporarily unavailable.',
+  quota_exceeded: 'You have used today’s AI requests. They reset at midnight UTC.',
+  usage_unavailable: 'AI suggestions are not set up on this server yet.',
 };
 
 export function isAssistErrorCode(value: unknown): value is AssistErrorCode {

@@ -1,6 +1,6 @@
 # KaiProofread + KaiKeys — feature matrix
 
-_Last updated: 2026-10-25 (Phase 1 cloud work: dictionary and its cross-device sync, UK/US spelling, readability, inline highlights, live checking)._
+_Last updated: 2026-10-25 (Phase 2 cloud work: AI rewriting, original-vs-revised comparison, provider abstraction with model fallback, daily usage limits and token tracking)._
 
 Statuses:
 - **Working**: implemented and passing tests in this session.
@@ -38,10 +38,12 @@ audit is in (`scripts/kai-local-audit.sh`).
 | Inline highlights | **Working** | CSS Custom Highlight API (Chrome/Edge 105+, Safari 17.2+, Firefox 140+): wavy red for errors, dotted blue for style. No document or DOM changes; stale issues aren't underlined; cleared when the panel closes. Browser-checked |
 | Live (as-you-type) proofreading | **Working** (offline checks) | Runs 500 ms after typing stops: UK/US spelling, repeated words, wordiness, passive voice, personal dictionary. **Nothing leaves the device** (browser test: no requests other than the app's existing font loading). Clicking an underline opens a card: fix / Ignore / Add to dictionary, Escape closes. Review ▸ Live Check on/off (default on, remembered). Paused while the Review panel is open. Online checks stay manual (privacy and LanguageTool rate limits). Tested; browser-checked |
 | Typing performance with underlines | **Working** | Underlines painted only near the visible area and repainted on scroll and after a pause. 30,000-character document: realistic text median keystroke 21 ms (vs 23 ms off); worst case (5 issues per sentence) 45 ms (vs 19 ms off). Headless Chromium on a cloud VM, not a real device |
-| Tone adjustment, rewrite, shorten, expand, summarise | **Missing** in KaiWriter (KaiDocs Pro's `rewrite.ts` is unrelated PDF editing) | |
+| Tone adjustment, rewrite, shorten, expand, simplify, summarise | **Working** against a stand-in model; live model **Not Verified** | Review ▸ Rewrite (or the Rewrite tab): Improve, More professional, More friendly, Shorten, Simplify, Expand, Summarise. Sends **only the selected text** (max 6,000 characters), only after consent. Prompt forbids invented facts; document wrapped as data. Reply validated (JSON, length plausible for the style, one paragraph stays one paragraph). Tested (unit tests; real edge function run under Deno with stand-ins; browser) |
+| Selection-based rewriting | **Working** (same caveat) | Replace, Insert below, Copy, Try again, Discard. Replace re-checks that the text is unchanged first and is one undo step; with Track Changes on it's recorded as a tracked deletion + insertion. Browser-checked |
+| Original-versus-revised comparison | **Working** | Word-level diff (insertions/deletions highlighted, word counts) before anything changes. Tested; browser-checked |
 | Readability score / writing statistics | **Working** (English) | Flesch Reading Ease and band, Flesch–Kincaid grade, words, sentences, words per sentence, long sentences, reading time; shown on the Suggestions tab; hidden for non-English. Tested; browser-checked |
-| AI provider abstraction / model fallback | **Partially Working** | Model configurable via `WRITING_ASSIST_MODEL`; single provider; no fallback chain |
-| Usage limits / token and cost tracking | **Partially Working** | Input cap of 20,000 characters; token usage returned but not stored; no per-user quota |
+| AI provider abstraction / model fallback | **Working** (one provider) | `_shared/aiProvider.ts`: provider interface, bounded exponential backoff, fallback through `WRITING_ASSIST_FALLBACK_MODELS` on retired/overloaded/timeout, a 26 s total budget, no fallback on refusals or credential errors. Only an Anthropic adapter exists. Tested; run under Deno with a stand-in API |
+| Usage limits / token and cost tracking | **Working** against a real Postgres 16; live Supabase **Not Verified** | Daily request limit per plan (defaults: free 25, Pro/Teams 500; `WRITING_ASSIST_DAILY_LIMIT_*`), counted atomically (30 concurrent requests against a limit of 7 → exactly 7 allowed), tokens stored per user per day, requests refunded when the provider did no work. Users can read only their own usage; only the edge function can change it. Shown as “N of M AI requests left today”. Cost in money is not computed (needs a price table) |
 | `PremiumProofreadingSettings.tsx` | **Not Verified** | Local only |
 | `advancedProofreading.test.ts` | **Not Verified** | Local only |
 | Desktop app integration | **Not Verified** | Tauri shell exists; desktop build not run in this session |

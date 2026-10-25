@@ -4,7 +4,32 @@ _Last updated: 2026-10-25._
 
 ## Current phase
 
-**Phase 0 (discovery and preservation): cloud side done; local side waiting on the owner.**
+**Phase 2 (core engine), cloud part, inside KaiWriter.** Phase 0's local side is still
+waiting on the owner; no new products have been created.
+
+## Phase 2: AI rewriting, provider abstraction, usage limits
+
+| Change | Files | Verified by |
+|---|---|---|
+| Provider-neutral completion: retries with bounded backoff, model fallback, time budget, tokens counted across attempts | `supabase/functions/_shared/aiProvider.ts` | 11 unit tests |
+| Rewrite styles, prompt (injection-resistant, no invented facts, UK/US spelling), reply validation | `supabase/functions/_shared/rewriteCore.ts` | 11 unit tests |
+| Daily limits per plan, plan detection, UTC day | `supabase/functions/_shared/aiUsageCore.ts` | 3 unit tests |
+| Usage table + atomic `kaiwriter_ai_reserve` / `kaiwriter_ai_finish` (service role only) | `supabase/migrations/20261025130000_kaiwriter_ai_usage.sql` (new, **not applied**) | all 5 migrations applied in order to a real PostgreSQL 16 (with Supabase stand-in roles); limit, next day, limit 0, refund, token totals; RLS (own rows only, no writes); `anon`/`authenticated` can't call the functions; 30 concurrent reservations against a limit of 7 → exactly 7 |
+| Edge function: verifies the user's token with Supabase (not just its presence), reserves quota, uses the provider layer, new `rewrite` mode, new errors `quota_exceeded` and `usage_unavailable`, returns remaining quota | `supabase/functions/writing-assist/index.ts` | `deno check`; run under Deno against stand-ins for Supabase auth and the Anthropic API, with usage counted in the real Postgres: fallback from a retired model, retries on overload then refund, free limit 3 → 4th refused, Pro not limited, 401/400/413, refusal 422, oversized and non-JSON replies 502, usage table missing 503, document text never in the log |
+| Rewrite client, word diff, putting a rewrite into the document (plain or tracked) | `src/lib/aiRewrite.ts`, `src/lib/wordDiff.ts`, `src/components/editor/rewriteApply.ts` | 7 + 3 + 9 tests |
+| Rewrite tab and Review ▸ Rewrite button | `src/components/editor/plugins/RewritePanel.tsx`, `WritingAssistSidebarPlugin.tsx`, `ReviewRibbon.tsx` | browser (app → real edge function → real Postgres; stand-in model): consent gate, diff, quota line, Replace + Undo, tracked Replace, “no changes”, Insert below, edited text refused, only the selection sent, no new external hosts, no page errors |
+
+Tests: **279 / 279 pass**; build passes; lint unchanged (44, all pre-existing).
+
+**Not tested:** a live Claude call (no API key here), and the migration on the real Supabase project.
+
+**Behaviour change to note:** once this is deployed, every AI request (including
+the existing AI suggestions) needs the usage migration. Without it the function
+returns “not set up on this server yet” instead of calling the model.
+
+**Owner decisions:** the daily limits (defaults free 25, Pro/Teams 500), whether to
+set fallback models (`WRITING_ASSIST_FALLBACK_MODELS`, empty by default), and the
+model itself (default unchanged).
 
 No new products have been created. Per the brief, KaiProofread and KaiKeys
 structure is on hold until the local implementations are inspected
@@ -107,15 +132,16 @@ local KaiProofread/KaiKeys code would risk duplicating it.
   the model (set `WRITING_ASSIST_MODEL`, or change the default).
 - Repeated-word detection misses 1–2 letter words.
 - The local rules are English-only regardless of the proofing locale.
-- Edge function CORS is `*` (JWT still required).
+- Edge function CORS is `*` (a valid sign-in is still required).
+- `template-assist` (Kai Assist template filling) still calls the model directly, with no usage limit or consent step.
 - The online-checks consent choice is stored per device (localStorage), not per account. (The personal dictionary now syncs for signed-in users.)
 - Readability scores use a heuristic syllable count (within about ±1 syllable per word) and English-only formulas.
 
 ## Work split
 
 ### Can be done in the cloud (no owner action)
-- More KaiWriter engine work: usage storage and per-user quotas (needs a migration),
-  AI rewrite / tone actions (live model calls can't be tested here).
+- More KaiWriter engine work: agreement, fragment and run-on detection; writing
+  history with user-controlled retention; cost tracking.
 - A Chromium / Firefox extension (build, load into headless Chromium, end-to-end
   tests), **once the local KaiBrowser code shows whether one exists**.
 - Kotlin keyboard logic (autocorrect, prediction, dictionary) as plain JVM code
@@ -138,8 +164,9 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 - Changing the AI model or provider, and any paid API usage.
 - Allowing `dl.google.com` in this environment's network settings (for the Android SDK).
 - Creating new GitHub repositories (e.g. `KaiProofread`, `KaiKeys`, `KaiBrowser`).
-- Applying database migrations (`20261015120000_kaiwriter_cross_device_sync.sql`, then
-  `20261025120000_kaiwriter_personal_dictionary.sql`, and any usage-quota table).
+- Applying database migrations, in order: `20261015120000_kaiwriter_cross_device_sync.sql`,
+  `20261025120000_kaiwriter_personal_dictionary.sql`, `20261025130000_kaiwriter_ai_usage.sql`.
+- AI daily limits per plan, and any fallback models.
 - Browser-store and app-store developer accounts, submissions and publishing.
 - Any change to how user text is shared between products.
 

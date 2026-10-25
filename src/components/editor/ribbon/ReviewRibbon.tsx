@@ -1,6 +1,6 @@
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  SpellCheck, Lightbulb, BookOpenCheck, Sparkles, FileDiff, Zap, Check, X, CheckCheck, XCircle, ChevronLeft, ChevronRight,
+  SpellCheck, Lightbulb, BookOpenCheck, Sparkles, FileDiff, WandSparkles, Zap, Check, X, CheckCheck, XCircle, ChevronLeft, ChevronRight,
 } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
 import { ACCEPT_CHANGE_COMMAND, NAVIGATE_CHANGE_COMMAND, REJECT_CHANGE_COMMAND } from '../trackChanges';
@@ -8,6 +8,7 @@ import { ACCEPT_CHANGE_COMMAND, NAVIGATE_CHANGE_COMMAND, REJECT_CHANGE_COMMAND }
 interface ReviewRibbonProps {
   onProofread?: () => void;
   onWritingSuggestions?: () => void;
+  onRewrite?: () => void;
   onKaiAssist?: () => void;
   trackChanges?: boolean;
   onToggleTrackChanges?: () => void;
@@ -19,6 +20,7 @@ interface ReviewRibbonProps {
 export function ReviewRibbon({
   onProofread,
   onWritingSuggestions,
+  onRewrite,
   onKaiAssist,
   trackChanges = false,
   onToggleTrackChanges,
@@ -43,6 +45,10 @@ export function ReviewRibbon({
         <button type="button" className={styles.largeToolBtn} onClick={onWritingSuggestions}>
           <Lightbulb size={24} />
           <span>Writing Suggestions</span>
+        </button>
+        <button type="button" className={styles.largeToolBtn} onClick={onRewrite} title="Rewrite the selected text with AI">
+          <WandSparkles size={24} />
+          <span>Rewrite</span>
         </button>
         <button type="button" className={styles.largeToolBtn} onClick={onProofread}>
           <BookOpenCheck size={24} />

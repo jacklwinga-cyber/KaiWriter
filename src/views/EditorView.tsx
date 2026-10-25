@@ -24,7 +24,7 @@ import { LiveProofreadPlugin } from '../components/editor/plugins/LiveProofreadP
 import { KeyboardShortcutsPlugin } from '../components/editor/plugins/KeyboardShortcutsPlugin';
 import { EditorChromeProvider, useEditorChrome } from '../contexts/EditorChromeContext';
 import { CommentsSidebarPlugin } from '../components/editor/plugins/CommentsSidebarPlugin';
-import { WritingAssistSidebarPlugin } from '../components/editor/plugins/WritingAssistSidebarPlugin';
+import { WritingAssistSidebarPlugin, type AssistTab } from '../components/editor/plugins/WritingAssistSidebarPlugin';
 import { BrandHeader } from '../components/editor/BrandHeader';
 import type { DocumentBranding } from '../lib/branding';
 import { getTemplateById, getTemplateContent } from '../data/templates';
@@ -250,10 +250,10 @@ function EditorLayout({
   const templateMeta = templateId ? getTemplateById(templateId) : undefined;
   const [leftPane, setLeftPane] = useState<'navigation' | 'comments' | 'writing'>('navigation');
   const [writingAssistSession, setWritingAssistSession] = useState(0);
-  const [writingAssistTab, setWritingAssistTab] = useState<'grammar' | 'suggestions'>('grammar');
+  const [writingAssistTab, setWritingAssistTab] = useState<AssistTab>('grammar');
   const [writingAssistAutoRun, setWritingAssistAutoRun] = useState(false);
 
-  const openWritingAssist = (tab: 'grammar' | 'suggestions', autoRun = true) => {
+  const openWritingAssist = (tab: AssistTab, autoRun = true) => {
     setWritingAssistTab(tab);
     setWritingAssistAutoRun(autoRun);
     setWritingAssistSession((n) => n + 1);
@@ -371,6 +371,8 @@ function EditorLayout({
         key={writingAssistSession}
         initialTab={writingAssistTab}
         autoRun={writingAssistAutoRun}
+        trackChanges={trackChanges}
+        author={user?.displayName || 'Guest'}
         onClose={() => setIsLeftSidebarOpen(false)}
       />
     ) : (
@@ -417,6 +419,7 @@ function EditorLayout({
             }}
             onOpenProofread={() => openWritingAssist('grammar', true)}
             onOpenWritingSuggestions={() => openWritingAssist('suggestions', true)}
+            onOpenRewrite={() => openWritingAssist('rewrite', false)}
             onOpenKaiAssist={() => setIsKaiAssistOpen(true)}
             onOpenBranding={() => setIsBrandSettingsOpen(true)}
             onOpenHeaderFooter={() => setIsHeaderFooterOpen(true)}

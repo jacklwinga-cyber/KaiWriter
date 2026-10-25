@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import {
-  CheckCircle2, Loader2, SpellCheck, Lightbulb, X, ChevronRight, RefreshCw, CheckCheck, Info,
+  CheckCircle2, Loader2, SpellCheck, Lightbulb, X, ChevronRight, RefreshCw, CheckCheck, Info, Sparkles,
 } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
 import assistStyles from './WritingAssistSidebar.module.css';
@@ -33,6 +33,7 @@ import {
   loadDictionary,
   removeDictionaryWord,
 } from '../../../lib/personalDictionary';
+import { RewritePanel } from './RewritePanel';
 
 /** Remembered choice about sending text to the online checkers (LanguageTool, Kai AI). */
 const ONLINE_CONSENT_KEY = 'kaiwriter-proofread-online-consent';
@@ -59,18 +60,23 @@ const isGrammarKind = (issue: WritingIssue) =>
   issue.kind === 'grammar' || issue.kind === 'spelling' || issue.kind === 'punctuation';
 
 type CheckScope = 'document' | 'selection';
-type AssistTab = 'grammar' | 'suggestions';
+export type AssistTab = 'grammar' | 'suggestions' | 'rewrite';
 
 interface WritingAssistSidebarPluginProps {
   onClose?: () => void;
   initialTab?: AssistTab;
   autoRun?: boolean;
+  /** Rewrites are recorded as tracked changes when on. */
+  trackChanges?: boolean;
+  author?: string;
 }
 
 export function WritingAssistSidebarPlugin({
   onClose,
   initialTab = 'grammar',
   autoRun = false,
+  trackChanges = false,
+  author = 'Guest',
 }: WritingAssistSidebarPluginProps) {
   const [editor] = useLexicalComposerContext();
   const { accessToken, user } = useAuth();
@@ -106,6 +112,7 @@ export function WritingAssistSidebarPlugin({
   }, []);
 
   const visibleIssues = useMemo(() => {
+    if (tab === 'rewrite') return [];
     const filtered = filterByDictionary(issues.filter((issue) => !dismissed.has(issue.id)), dictionary);
     if (tab === 'grammar') return filtered.filter(isGrammarKind);
     return filtered.filter((issue) => issue.kind === 'style' || issue.kind === 'clarity' || issue.source === 'ai');
@@ -199,7 +206,7 @@ export function WritingAssistSidebarPlugin({
   }, [editor, scope, tab, accessToken, languageToolCode, disableSpellCheck, consent]);
 
   useEffect(() => {
-    if (!autoRun || autoRan.current) return;
+    if (!autoRun || autoRan.current || initialTab === 'rewrite') return;
     autoRan.current = true;
     void runCheck('document', initialTab);
   }, [autoRun, initialTab, runCheck]);
@@ -291,127 +298,150 @@ export function WritingAssistSidebarPlugin({
           Suggestions
           {suggestionCount > 0 && <span className={assistStyles.tabBadge}>{suggestionCount}</span>}
         </button>
-      </div>
-
-      <div className={assistStyles.controls}>
-        <div className={assistStyles.scopeRow}>
-          <button
-            type="button"
-            className={`${assistStyles.scopeBtn} ${scope === 'document' ? assistStyles.scopeBtnActive : ''}`}
-            onClick={() => setScope('document')}
-          >
-            Whole document
-          </button>
-          <button
-            type="button"
-            className={`${assistStyles.scopeBtn} ${scope === 'selection' ? assistStyles.scopeBtnActive : ''}`}
-            onClick={() => setScope('selection')}
-          >
-            Selection
-          </button>
-        </div>
         <button
           type="button"
-          className={assistStyles.runBtn}
-          disabled={loading}
-          onClick={() => void runCheck(scope, tab)}
+          className={`${assistStyles.tab} ${tab === 'rewrite' ? assistStyles.tabActive : ''}`}
+          onClick={() => setTab('rewrite')}
         >
-          {loading ? <Loader2 size={14} className={assistStyles.spin} /> : <RefreshCw size={14} />}
-          {tab === 'grammar' ? 'Check grammar & spelling' : 'Get writing suggestions'}
+          <Sparkles size={12} /> Rewrite
         </button>
       </div>
 
-      {consent === null && (
-        <div className={assistStyles.manualHint} role="note" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.4 }}>
-          <p style={{ margin: '0 0 6px' }}>
-            <Info size={12} /> Grammar and spelling checks send the text you check to LanguageTool (languagetool.org);
-            AI suggestions send it to Kai AI. Offline checks never leave this device.
-          </p>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('granted')}>Allow online checks</button>
-            <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('denied')}>Offline only</button>
+      {tab === 'rewrite' ? (
+        <RewritePanel
+          accessToken={accessToken}
+          languageCode={languageToolCode}
+          onlineAllowed={consent === 'granted'}
+          onAllowOnline={() => {
+            writeConsent('granted');
+            setConsent('granted');
+          }}
+          trackChanges={trackChanges}
+          author={author}
+        />
+      ) : (
+        <>
+        <div className={assistStyles.controls}>
+          <div className={assistStyles.scopeRow}>
+            <button
+              type="button"
+              className={`${assistStyles.scopeBtn} ${scope === 'document' ? assistStyles.scopeBtnActive : ''}`}
+              onClick={() => setScope('document')}
+            >
+              Whole document
+            </button>
+            <button
+              type="button"
+              className={`${assistStyles.scopeBtn} ${scope === 'selection' ? assistStyles.scopeBtnActive : ''}`}
+              onClick={() => setScope('selection')}
+            >
+              Selection
+            </button>
           </div>
+          <button
+            type="button"
+            className={assistStyles.runBtn}
+            disabled={loading}
+            onClick={() => void runCheck(scope, tab)}
+          >
+            {loading ? <Loader2 size={14} className={assistStyles.spin} /> : <RefreshCw size={14} />}
+            {tab === 'grammar' ? 'Check grammar & spelling' : 'Get writing suggestions'}
+          </button>
         </div>
-      )}
 
-      {error && <p className={assistStyles.error}>{error}</p>}
-      {notices.map((notice) => (
-        <p key={notice} className={assistStyles.manualHint} style={{ margin: '4px 12px' }}>
-          <Info size={12} /> {notice}
-        </p>
-      ))}
-      {consent === 'denied' && (
-        <button type="button" className={assistStyles.scopeBtn} style={{ margin: '4px 12px', flex: 'none', alignSelf: 'flex-start' }} onClick={() => chooseConsent('granted')}>
-          Turn on online checks
-        </button>
-      )}
-
-      {tab === 'grammar' && acceptAllCandidates.length > 1 && (
-        <button type="button" className={assistStyles.runBtn} style={{ margin: '4px 12px', flex: 'none' }} onClick={handleAcceptAll}>
-          <CheckCheck size={14} /> Accept all {acceptAllCandidates.length} fixes
-        </button>
-      )}
-
-      {!loading && lastChecked && visibleIssues.length === 0 && !error && (
-        <div className={assistStyles.emptyGood}>
-          <CheckCircle2 size={20} />
-          <p>{tab === 'grammar' ? 'No grammar or spelling issues found.' : 'No writing suggestions right now.'}</p>
-        </div>
-      )}
-
-      {tab === 'suggestions' && readability && readability.words > 0 && !loading && (
-        <div className={assistStyles.manualHint} role="group" aria-label="Readability" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.5 }}>
-          <strong>Readability</strong>
-          {readability.readingEase !== null ? (
-            <div>
-              {readability.band}: reading ease {readability.readingEase}/100, grade {readability.gradeLevel}
+        {consent === null && (
+          <div className={assistStyles.manualHint} role="note" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.4 }}>
+            <p style={{ margin: '0 0 6px' }}>
+              <Info size={12} /> Grammar and spelling checks send the text you check to LanguageTool (languagetool.org);
+              AI suggestions send it to Kai AI. Offline checks never leave this device.
+            </p>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('granted')}>Allow online checks</button>
+              <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('denied')}>Offline only</button>
             </div>
-          ) : (
-            <div>Add more text (30+ words) for a readability score.</div>
-          )}
-          <div>
-            {readability.words} words · {readability.sentences} sentences · {readability.avgWordsPerSentence} words per sentence
-            {readability.longSentences > 0 ? ` · ${readability.longSentences} long` : ''} · {readability.readingMinutes} min read
           </div>
-        </div>
-      )}
+        )}
 
-      <div className={assistStyles.issueList}>
-        {visibleIssues.map((issue) => (
-          <IssueCard
-            key={issue.id}
-            issue={issue}
-            onFocus={() => handleFocus(issue)}
-            onApply={(suggestion) => handleApply(issue, suggestion)}
-            onDismiss={() => handleDismiss(issue.id)}
-            onAddToDictionary={
-              issue.kind === 'spelling' && isValidDictionaryWord(issue.original)
-                ? () => handleAddToDictionary(issue.original)
-                : undefined
-            }
-          />
+        {error && <p className={assistStyles.error}>{error}</p>}
+        {notices.map((notice) => (
+          <p key={notice} className={assistStyles.manualHint} style={{ margin: '4px 12px' }}>
+            <Info size={12} /> {notice}
+          </p>
         ))}
-      </div>
+        {consent === 'denied' && (
+          <button type="button" className={assistStyles.scopeBtn} style={{ margin: '4px 12px', flex: 'none', alignSelf: 'flex-start' }} onClick={() => chooseConsent('granted')}>
+            Turn on online checks
+          </button>
+        )}
 
-      {dictionary.length > 0 && (
-        <details className={assistStyles.manualHint} style={{ display: 'block', margin: '8px 12px' }}>
-          <summary style={{ cursor: 'pointer' }}>Personal dictionary ({dictionary.length})</summary>
-          <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }}>
-            {dictionary.map((word) => (
-              <li key={word} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
-                <span>{word}</span>
-                <button
-                  type="button"
-                  className={assistStyles.dismissBtn}
-                  aria-label={`Remove “${word}” from dictionary`}
-                  onClick={() => handleRemoveFromDictionary(word)}
-                >
-                  <X size={12} />
-                </button>
-              </li>
-            ))}
-          </ul>
-        </details>
+        {tab === 'grammar' && acceptAllCandidates.length > 1 && (
+          <button type="button" className={assistStyles.runBtn} style={{ margin: '4px 12px', flex: 'none' }} onClick={handleAcceptAll}>
+            <CheckCheck size={14} /> Accept all {acceptAllCandidates.length} fixes
+          </button>
+        )}
+
+        {!loading && lastChecked && visibleIssues.length === 0 && !error && (
+          <div className={assistStyles.emptyGood}>
+            <CheckCircle2 size={20} />
+            <p>{tab === 'grammar' ? 'No grammar or spelling issues found.' : 'No writing suggestions right now.'}</p>
+          </div>
+        )}
+
+        {tab === 'suggestions' && readability && readability.words > 0 && !loading && (
+          <div className={assistStyles.manualHint} role="group" aria-label="Readability" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.5 }}>
+            <strong>Readability</strong>
+            {readability.readingEase !== null ? (
+              <div>
+                {readability.band}: reading ease {readability.readingEase}/100, grade {readability.gradeLevel}
+              </div>
+            ) : (
+              <div>Add more text (30+ words) for a readability score.</div>
+            )}
+            <div>
+              {readability.words} words · {readability.sentences} sentences · {readability.avgWordsPerSentence} words per sentence
+              {readability.longSentences > 0 ? ` · ${readability.longSentences} long` : ''} · {readability.readingMinutes} min read
+            </div>
+          </div>
+        )}
+
+        <div className={assistStyles.issueList}>
+          {visibleIssues.map((issue) => (
+            <IssueCard
+              key={issue.id}
+              issue={issue}
+              onFocus={() => handleFocus(issue)}
+              onApply={(suggestion) => handleApply(issue, suggestion)}
+              onDismiss={() => handleDismiss(issue.id)}
+              onAddToDictionary={
+                issue.kind === 'spelling' && isValidDictionaryWord(issue.original)
+                  ? () => handleAddToDictionary(issue.original)
+                  : undefined
+              }
+            />
+          ))}
+        </div>
+
+        {dictionary.length > 0 && (
+          <details className={assistStyles.manualHint} style={{ display: 'block', margin: '8px 12px' }}>
+            <summary style={{ cursor: 'pointer' }}>Personal dictionary ({dictionary.length})</summary>
+            <ul style={{ listStyle: 'none', padding: 0, margin: '6px 0 0' }}>
+              {dictionary.map((word) => (
+                <li key={word} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '2px 0' }}>
+                  <span>{word}</span>
+                  <button
+                    type="button"
+                    className={assistStyles.dismissBtn}
+                    aria-label={`Remove “${word}” from dictionary`}
+                    onClick={() => handleRemoveFromDictionary(word)}
+                  >
+                    <X size={12} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+        </>
       )}
     </div>
   );
