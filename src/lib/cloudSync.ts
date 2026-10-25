@@ -42,6 +42,14 @@ import type { DocumentBranding } from './branding';
 import type { PageSetup } from './pageSetup';
 import { createDocumentId } from './ids';
 import {
+  adoptGuestDictionary,
+  applyRemoteEntries,
+  getEntry,
+  markEntrySynced,
+  normalizeWord,
+  unsyncedEntries,
+} from './personalDictionary';
+import {
   completeSync,
   emitDocumentUpdated,
   emitLibraryChanged,
@@ -52,6 +60,8 @@ import {
 
 const DOCS_TABLE = 'kaiwriter_documents';
 const FOLDERS_TABLE = 'kaiwriter_folders';
+const DICTIONARY_TABLE = 'kaiwriter_dictionary_words';
+const DICTIONARY_CURSOR_PREFIX = 'kaiwriter-dict-cursor-';
 const DOC_COLUMNS =
   'id, name, content, template_id, last_modified, branding, page_setup, deleted_at, purged, pinned, folder_id, updated_at';
 const PULL_PAGE_SIZE = 200;
@@ -279,6 +289,38 @@ async function flushFolder(userId: string, id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+/**
+ * Upload one dictionary word. Only overwrites the cloud row if ours is newer,
+ * so an old offline change never clobbers a newer one from another device
+ * (the pull then brings the newer one here).
+ */
+async function flushDictionaryWord(userId: string, norm: string): Promise<void> {
+  const entry = getEntry(userId, norm);
+  if (!entry) return;
+  const supabase = getSupabase();
+  const row = {
+    user_id: userId,
+    word_norm: entry.norm,
+    word: entry.word,
+    modified_at: entry.modifiedAt,
+    deleted_at: entry.deletedAt ?? null,
+  };
+  const { data, error } = await supabase
+    .from(DICTIONARY_TABLE)
+    .update(row)
+    .eq('user_id', userId)
+    .eq('word_norm', entry.norm)
+    .lt('modified_at', entry.modifiedAt)
+    .select('word_norm');
+  if (error) throw new Error(error.message);
+  if (!data || data.length === 0) {
+    const { error: insertError } = await supabase.from(DICTIONARY_TABLE).insert(row);
+    // 23505: the row exists with a same-or-newer change; the cloud version wins.
+    if (insertError && insertError.code !== '23505') throw new Error(insertError.message);
+  }
+  markEntrySynced(userId, entry.norm, entry.modifiedAt);
+}
+
 let flushing: Promise<void> | null = null;
 let flushAgain = false;
 
@@ -303,6 +345,7 @@ export function flushOutbox(userId: string): Promise<void> {
           const id = rest.join(':');
           if (kind === 'doc') await flushDocument(userId, id);
           else if (kind === 'folder') await flushFolder(userId, id);
+          else if (kind === 'dict') await flushDictionaryWord(userId, id);
           completeSync(userId, key, entrySeq);
         }
         notifySyncStatus('synced');
@@ -409,6 +452,59 @@ async function pullFolders(userId: string): Promise<boolean> {
   return changed;
 }
 
+interface DictionaryRow {
+  word_norm: string;
+  word: string;
+  modified_at: number;
+  deleted_at: number | null;
+  updated_at: string;
+}
+
+async function pullDictionary(userId: string): Promise<boolean> {
+  const supabase = getSupabase();
+  const cursorKey = DICTIONARY_CURSOR_PREFIX + userId;
+  let cursor: string | null = null;
+  try {
+    cursor = localStorage.getItem(cursorKey);
+  } catch {
+    // full pull
+  }
+  let changed = false;
+  for (;;) {
+    let query = supabase
+      .from(DICTIONARY_TABLE)
+      .select('word_norm, word, modified_at, deleted_at, updated_at')
+      .eq('user_id', userId);
+    if (cursor) query = query.gt('updated_at', cursor);
+    const { data, error } = await query.order('updated_at', { ascending: true }).limit(PULL_PAGE_SIZE);
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as DictionaryRow[];
+    const applied = applyRemoteEntries(
+      userId,
+      rows
+        .filter((r) => normalizeWord(r.word) === r.word_norm) // ignore malformed rows
+        .map((r) => ({ word: r.word, norm: r.word_norm, modifiedAt: Number(r.modified_at), deletedAt: r.deleted_at })),
+    );
+    if (applied) changed = true;
+    const last = rows[rows.length - 1]?.updated_at;
+    if (last) {
+      cursor = last;
+      try {
+        localStorage.setItem(cursorKey, last);
+      } catch {
+        // re-pulled next time; applying is idempotent
+      }
+    }
+    if (rows.length < PULL_PAGE_SIZE) return changed;
+  }
+}
+
+/** Queue dictionary words that haven't reached the cloud (incl. words added before signing in). */
+function queueUnsyncedDictionary(userId: string): void {
+  adoptGuestDictionary(userId);
+  for (const entry of unsyncedEntries(userId)) enqueueSync(userId, `dict:${entry.norm}`);
+}
+
 /** Queue local documents that have never reached the cloud or changed while signed out. */
 async function queueUnsyncedDocuments(userId: string): Promise<void> {
   for (const doc of await listAllDocuments()) {
@@ -425,6 +521,7 @@ export function syncNow(userId: string): Promise<void> {
   if (!isSupabaseConfigured()) return Promise.resolve();
   syncChain = syncChain.then(async () => {
     await queueUnsyncedDocuments(userId);
+    queueUnsyncedDictionary(userId);
     await flushOutbox(userId);
     try {
       const foldersChanged = await pullFolders(userId);
@@ -432,6 +529,12 @@ export function syncNow(userId: string): Promise<void> {
       if (foldersChanged || docsChanged) emitLibraryChanged();
     } catch (err) {
       console.error('[KaiWriter] cloud sync pull failed:', err);
+    }
+    try {
+      // Fires DICTIONARY_CHANGED_EVENT itself when words change.
+      await pullDictionary(userId);
+    } catch (err) {
+      console.error('[KaiWriter] dictionary sync pull failed:', err);
     }
     // Pulling may have queued local-only folders.
     await flushOutbox(userId);
@@ -477,6 +580,7 @@ export function startCloudSync(userId: string): Promise<void> {
     .channel(`kaiwriter-sync-${userId}`)
     .on('postgres_changes', { event: '*', schema: 'public', table: DOCS_TABLE, filter: `user_id=eq.${userId}` }, schedule)
     .on('postgres_changes', { event: '*', schema: 'public', table: FOLDERS_TABLE, filter: `user_id=eq.${userId}` }, schedule)
+    .on('postgres_changes', { event: '*', schema: 'public', table: DICTIONARY_TABLE, filter: `user_id=eq.${userId}` }, schedule)
     .subscribe();
 
   stopActiveSync = () => {

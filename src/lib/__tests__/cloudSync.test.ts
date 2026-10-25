@@ -59,6 +59,10 @@ class FakeQuery {
     this.filters.push((r) => String(r[key]) > value);
     return this;
   }
+  lt(key: string, value: number) {
+    this.filters.push((r) => Number(r[key]) < value);
+    return this;
+  }
   order(key: string) {
     this.orderKey = key;
     return this;
@@ -78,7 +82,8 @@ class FakeQuery {
   private async exec(): Promise<{ data: unknown; error: { code?: string; message: string } | null }> {
     const rows = this.rows();
     const match = (r: Row) => this.filters.every((f) => f(r));
-    const sameKey = (a: Row, b: Row) => a.id === b.id && a.user_id === b.user_id;
+    const sameKey = (a: Row, b: Row) =>
+      a.user_id === b.user_id && (a.word_norm !== undefined ? a.word_norm === b.word_norm : a.id === b.id);
     if (this.op !== 'select' && failWrites) return { data: null, error: { message: 'network down' } };
 
     if (this.op === 'insert') {
@@ -129,6 +134,13 @@ import {
 } from '../documentStore';
 import { createFolder, getFolder, listFolders, moveDocumentToFolder } from '../folderStore';
 import { DOCUMENT_UPDATED_EVENT, pendingSync, type DocumentUpdatedDetail } from '../syncOutbox';
+import {
+  addDictionaryWord,
+  DICTIONARY_CHANGED_EVENT,
+  loadDictionary,
+  loadEntries,
+  removeDictionaryWord,
+} from '../personalDictionary';
 
 const USER = 'user-1';
 
@@ -334,5 +346,88 @@ describe('cloud sync — trash, delete, pins and folders', () => {
     const local = await getDocument('f1');
     expect(local?.folderId).toBeUndefined();
     expect(local?.pinned).toBe(true);
+  });
+});
+
+describe('cloud sync — personal dictionary', () => {
+  const dictRows = () => (tables.kaiwriter_dictionary_words ??= []);
+  const dictRow = (norm: string) => dictRows().find((r) => r.word_norm === norm);
+  const otherDeviceDict = (word: string, fields: Row) => {
+    const norm = word.toLowerCase();
+    const existing = dictRow(norm);
+    const row = { user_id: USER, word_norm: norm, word, deleted_at: null, ...existing, ...fields, updated_at: nextUpdatedAt() };
+    if (existing) Object.assign(existing, row);
+    else dictRows().push(row);
+  };
+
+  afterEach(() => vi.useRealTimers());
+
+  it('uploads added and removed words', async () => {
+    addDictionaryWord(USER, 'Prowire');
+    await settle();
+    expect(dictRow('prowire')).toMatchObject({ word: 'Prowire', deleted_at: null });
+
+    removeDictionaryWord(USER, 'prowire');
+    await settle();
+    expect(dictRow('prowire')?.deleted_at).toEqual(expect.any(Number));
+    expect(loadDictionary(USER)).toEqual([]);
+  });
+
+  it('applies words added and removed on another device', async () => {
+    const events: string[] = [];
+    const listener = () => events.push('changed');
+    window.addEventListener(DICTIONARY_CHANGED_EVENT, listener);
+    otherDeviceDict('KaiHub', { modified_at: 1000 });
+    otherDeviceDict('Lexical', { modified_at: 1000 });
+    await syncNow(USER);
+    expect(loadDictionary(USER)).toEqual(['KaiHub', 'Lexical']);
+
+    otherDeviceDict('Lexical', { modified_at: 2000, deleted_at: 2000 });
+    await syncNow(USER);
+    window.removeEventListener(DICTIONARY_CHANGED_EVENT, listener);
+    expect(loadDictionary(USER)).toEqual(['KaiHub']);
+    expect(events.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('keeps the newer change when two devices edit the same word', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(1_000);
+    addDictionaryWord(USER, 'Wakanda');
+    await settle();
+
+    // This device goes offline and removes the word at t=2000…
+    failWrites = true;
+    vi.setSystemTime(2_000);
+    removeDictionaryWord(USER, 'Wakanda');
+    await settle();
+    // …while another device re-adds it later, at t=3000.
+    otherDeviceDict('Wakanda', { modified_at: 3_000, deleted_at: null });
+
+    failWrites = false;
+    await syncNow(USER);
+    expect(dictRow('wakanda')).toMatchObject({ modified_at: 3_000, deleted_at: null }); // not overwritten
+    expect(loadDictionary(USER)).toEqual(['Wakanda']); // and the newer state reached this device
+  });
+
+  it('a newer local change wins over an older cloud one', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    otherDeviceDict('Zanzibar', { modified_at: 1_000, deleted_at: 1_000 });
+    vi.setSystemTime(5_000);
+    addDictionaryWord(USER, 'Zanzibar');
+    await settle();
+    expect(dictRow('zanzibar')).toMatchObject({ modified_at: 5_000, deleted_at: null });
+    expect(loadDictionary(USER)).toEqual(['Zanzibar']);
+  });
+
+  it('uploads words added before signing in', async () => {
+    setCloudSyncUserId(null);
+    localStorage.setItem('kaiwriter-personal-dictionary:guest', JSON.stringify(['Mzuzu']));
+    localStorage.setItem(`kaiwriter-personal-dictionary:${USER}`, JSON.stringify(['Lilongwe'])); // older list format
+    setCloudSyncUserId(USER);
+
+    await syncNow(USER);
+    expect(dictRows().map((r) => r.word).sort()).toEqual(['Lilongwe', 'Mzuzu']);
+    expect(loadDictionary(USER)).toEqual(['Lilongwe', 'Mzuzu']);
+    expect(loadEntries(USER).every((e) => e.synced)).toBe(true);
   });
 });

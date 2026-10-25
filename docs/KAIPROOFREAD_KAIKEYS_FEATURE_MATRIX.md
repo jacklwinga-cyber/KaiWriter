@@ -1,6 +1,6 @@
 # KaiProofread + KaiKeys — feature matrix
 
-_Last updated: 2026-10-25 (Phase 1 cloud work: dictionary, UK/US spelling, readability, inline highlights)._
+_Last updated: 2026-10-25 (Phase 1 cloud work: dictionary and its cross-device sync, UK/US spelling, readability, inline highlights, live checking)._
 
 Statuses:
 - **Working**: implemented and passing tests in this session.
@@ -34,7 +34,7 @@ audit is in (`scripts/kai-local-audit.sh`).
 | Selection-based checking | **Working** | Selection offsets now mapped into document positions |
 | UK / US English | **Working** | Offline: about 80 unambiguous US/UK spelling pairs, case-preserving, for en-GB/AU/NZ/ZA/IE and en-US (en-CA left alone); meaning-dependent pairs and -ize/-ise excluded. Online: locale passed to LanguageTool. Tested; browser-checked |
 | Multilingual proofreading | **Partially Working** | 10 locales via LanguageTool. English-only local rules are now skipped for other languages (only repeated words run). AI is English-only |
-| Personal dictionary / ignore word | **Working** (per device) | "Add to dictionary" on spelling issues; list with remove; filters spelling issues from every checker; case- and apostrophe-insensitive. Stored per user in localStorage, **not yet synced across devices**. Tested; browser-checked |
+| Personal dictionary / ignore word | **Working**; cross-device sync **Working** against a test double, live Supabase **Not Verified** | "Add to dictionary" on spelling issues; list with remove; filters spelling issues from every checker; case- and apostrophe-insensitive. Signed-in users: synced across devices word by word (table `kaiwriter_dictionary_words`, migration `20261025120000`), works offline through the sync outbox, removals sync as tombstones, the later change to the same word wins, words added before signing in are carried into the account. Guests: per device. Tested (5 sync tests); live sync needs the migration applied |
 | Inline highlights | **Working** | CSS Custom Highlight API (Chrome/Edge 105+, Safari 17.2+, Firefox 140+): wavy red for errors, dotted blue for style. No document or DOM changes; stale issues aren't underlined; cleared when the panel closes. Browser-checked |
 | Live (as-you-type) proofreading | **Working** (offline checks) | Runs 500 ms after typing stops: UK/US spelling, repeated words, wordiness, passive voice, personal dictionary. **Nothing leaves the device** (browser test: no requests other than the app's existing font loading). Clicking an underline opens a card: fix / Ignore / Add to dictionary, Escape closes. Review ▸ Live Check on/off (default on, remembered). Paused while the Review panel is open. Online checks stay manual (privacy and LanguageTool rate limits). Tested; browser-checked |
 | Typing performance with underlines | **Working** | Underlines painted only near the visible area and repainted on scroll and after a pause. 30,000-character document: realistic text median keystroke 21 ms (vs 23 ms off); worst case (5 issues per sentence) 45 ms (vs 19 ms off). Headless Chromium on a cloud VM, not a real device |
@@ -71,6 +71,6 @@ audit is in (`scripts/kai-local-audit.sh`).
 | Feature | Status | Evidence / notes |
 |---|---|---|
 | Shared account identity | **Partially Working** | KaiWriter and KAIHUB both use Supabase auth; whether they share one Supabase project is not visible in code (it's set by env vars) |
-| Shared writing preferences / dictionaries | **Missing** | |
+| Shared writing preferences / dictionaries | **Partially Working** | KaiWriter's personal dictionary syncs across a user's devices; not shared with other products yet |
 | Subscription entitlements | **Partially Working** | KaiWriter has Stripe Pro via `kaiwriter_subscriptions`; not shared with other products |
 | KAIHUB_PHASE_BETA contracts | **Not Verified** | Local only |

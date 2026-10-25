@@ -44,6 +44,20 @@ document. Fixed as above.
 
 Tests: **230 / 230 pass**; build passes; lint unchanged.
 
+## Personal dictionary synced across devices
+
+| Change | Files | Verified by |
+|---|---|---|
+| Table `kaiwriter_dictionary_words`: one row per word, own-rows-only RLS, `updated_at` trigger, Realtime | `supabase/migrations/20261025120000_kaiwriter_personal_dictionary.sql` (new, **not applied**) | reviewed; not run against a database here |
+| Per-word entries with modified time and removal tombstones; older word lists still load | `src/lib/personalDictionary.ts` | unit tests |
+| Upload through the existing outbox (works offline, retried), incremental download, live updates from other devices, guest words carried into the account on sign-in | `src/lib/cloudSync.ts` | 5 tests: add/remove upload, remote add/remove applied, newer change wins across devices, newer local change kept over older cloud copy, pre-sign-in words uploaded |
+
+Same word changed on two devices: the later change wins. Different words never
+overwrite each other. Not shared with other Kai products.
+
+Tests: **235 / 235 pass**; build passes; lint unchanged (44, all pre-existing).
+**Not tested:** sync against a live Supabase project (the migration has to be applied first).
+
 ## Phase 0 work
 
 ### KaiWriter proofreading fixes (defects D1–D14 in the audit)
@@ -94,14 +108,13 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 - Repeated-word detection misses 1–2 letter words.
 - The local rules are English-only regardless of the proofing locale.
 - Edge function CORS is `*` (JWT still required).
-- The consent choice and the personal dictionary are stored per device (localStorage), not per account.
+- The online-checks consent choice is stored per device (localStorage), not per account. (The personal dictionary now syncs for signed-in users.)
 - Readability scores use a heuristic syllable count (within about ±1 syllable per word) and English-only formulas.
 
 ## Work split
 
 ### Can be done in the cloud (no owner action)
-- More KaiWriter engine work: syncing the personal dictionary across devices
-  (needs a migration), usage storage and per-user quotas (needs a migration),
+- More KaiWriter engine work: usage storage and per-user quotas (needs a migration),
   AI rewrite / tone actions (live model calls can't be tested here).
 - A Chromium / Firefox extension (build, load into headless Chromium, end-to-end
   tests), **once the local KaiBrowser code shows whether one exists**.
@@ -125,7 +138,8 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 - Changing the AI model or provider, and any paid API usage.
 - Allowing `dl.google.com` in this environment's network settings (for the Android SDK).
 - Creating new GitHub repositories (e.g. `KaiProofread`, `KaiKeys`, `KaiBrowser`).
-- Applying database migrations (the PR #2 migration, and any usage-quota table).
+- Applying database migrations (`20261015120000_kaiwriter_cross_device_sync.sql`, then
+  `20261025120000_kaiwriter_personal_dictionary.sql`, and any usage-quota table).
 - Browser-store and app-store developer accounts, submissions and publishing.
 - Any change to how user text is shared between products.
 
