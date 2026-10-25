@@ -7,6 +7,21 @@ _Last updated: 2026-10-25._
 **Phase 2 (core engine), cloud part, inside KaiWriter.** Phase 0's local side is still
 waiting on the owner; no new products have been created.
 
+## Phases 8 and 10 (KaiWriter part): privacy controls and release preparation
+
+| Change | Files | Verified by |
+|---|---|---|
+| Download my data (JSON: documents with text and full content, history, folders, dictionary, settings, AI usage; no credentials or PIN hash), for guests too | `src/lib/accountData.ts`, Account dialog in `Modals.tsx` (loaded on demand) | 1 test (IndexedDB); production build in a browser: file downloaded and parsed |
+| Delete account: edge function deletes the auth user (every KaiWriter table cascades); requires a sign-in in the last 15 minutes and typing DELETE; refused while a paid subscription is active; optionally clears this browser | `supabase/functions/delete-account/index.ts` (new), `_shared/accountCore.ts`, `accountData.ts`, `Modals.tsx` | 7 tests; `deno check`; function run under Deno against real PostgreSQL 16 with all migrations: refusals change nothing, deletion removes that user's rows in every table and leaves other users' rows, the old token stops working, log has codes only. Browser (app → real function → real Postgres, stand-in auth): button disabled until DELETE, account and rows gone, local copies kept when not ticked, signed out |
+| Production-build smoke test | `vite preview` of `dist/` | live underlines, autosave across reload, PDF export (valid PDF), data download; no page errors or failed requests |
+| Deployment runbook (order, secrets, smoke test, rollback), privacy and data-flow description, release notes | `docs/KAIWRITER_DEPLOYMENT.md`, `docs/KAIWRITER_PRIVACY_DATA_FLOW.md`, `docs/KAIWRITER_RELEASE_NOTES.md` | reviewed against the code |
+
+**Not done here:** deploying to Vercel. This environment has no Vercel credentials or
+connector, and no Vercel deployment statuses appear on the repo's commits. The runbook
+covers deploying from the Mac CLI or through a Git integration.
+
+Tests: **312 / 312 pass**; build passes; lint unchanged (44, all pre-existing).
+
 ## Phase 2 (continued): offline grammar, shortcuts, history retention
 
 | Change | Files | Verified by |
@@ -179,6 +194,7 @@ local KaiProofread/KaiKeys code would risk duplicating it.
 - Changing the AI model or provider, and any paid API usage.
 - Allowing `dl.google.com` in this environment's network settings (for the Android SDK).
 - Creating new GitHub repositories (e.g. `KaiProofread`, `KaiKeys`, `KaiBrowser`).
+- Deploying to Vercel and Supabase (see `docs/KAIWRITER_DEPLOYMENT.md`), including `delete-account`.
 - Applying database migrations, in order: `20261015120000_kaiwriter_cross_device_sync.sql`,
   `20261025120000_kaiwriter_personal_dictionary.sql`, `20261025130000_kaiwriter_ai_usage.sql`.
 - AI daily limits per plan, and any fallback models.
