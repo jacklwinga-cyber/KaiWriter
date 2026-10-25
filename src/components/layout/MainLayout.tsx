@@ -6,6 +6,8 @@ import { SettingsModal, ProfileModal } from '../ui/Modals';
 import { LegacyPinProBanner } from '../ui/LegacyPinProBanner';
 import { useAuth } from '../../contexts/AuthProvider';
 import { createDocumentId } from '../../lib/ids';
+import { FREE_DOCUMENT_LIMIT } from '../../lib/stripe';
+import { useOpenDocumentFile } from '../../hooks/useOpenDocumentFile';
 import type { SaveStatus, SyncStatus } from '../../contexts/EditorChromeContext';
 
 const RIBBON_TABS = ['File', 'Home', 'Insert', 'Layout', 'Review', 'View'] as const;
@@ -58,6 +60,13 @@ export function MainLayout({
   onOpenVersionHistory,
 }: MainLayoutProps) {
   const navigate = useNavigate();
+  const openFile = useOpenDocumentFile(async () => {
+    if (isPro) return true;
+    const { countDocuments } = await import('../../lib/documentStore');
+    if ((await countDocuments()) < FREE_DOCUMENT_LIMIT) return true;
+    onRequestUpgrade?.();
+    return false;
+  });
   const { user } = useAuth();
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
@@ -79,6 +88,7 @@ export function MainLayout({
 
   return (
     <div className={styles.appContainer}>
+      {openFile.input}
       <LegacyPinProBanner onSignIn={() => openAccount('signin')} />
       <div className={styles.titleBar}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -140,7 +150,7 @@ export function MainLayout({
         </div>
 
         <div className={styles.titleActions} style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <button type="button" className={styles.iconButton} onClick={() => onExportPdf?.() ?? window.print()} title="Print / Export to PDF">
+          <button type="button" className={styles.iconButton} onClick={() => onExportPdf?.() ?? window.print()} title="Export to PDF">
             <Printer size={16} />
           </button>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }} onClick={() => openAccount()}>
@@ -180,6 +190,7 @@ export function MainLayout({
                   <div className={styles.fileDropdown}>
                     <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); navigate(`/doc/${createDocumentId()}`); }}>New Document</div>
                     <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); navigate('/app'); }}>New from Template…</div>
+                    <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); void openFile.open(); }}>Open…</div>
                     <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); navigate('/app'); }}>Open Recent…</div>
                     <div className={styles.fileMenuDivider} />
                     <div
@@ -199,7 +210,8 @@ export function MainLayout({
                       <X size={14} style={{ marginRight: '8px' }} /> Close
                     </div>
                     <div className={styles.fileMenuDivider} />
-                    <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); onExportPdf?.() ?? window.print(); }}>Export as PDF (Print)…</div>
+                    <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); onExportPdf?.() ?? window.print(); }}>Export as PDF…</div>
+                    <div className={styles.fileMenuItem} onClick={() => { setIsFileMenuOpen(false); window.print(); }}>Print…</div>
                     <div
                       className={styles.fileMenuItem}
                       onMouseEnter={() => setShowExportMenu(true)}

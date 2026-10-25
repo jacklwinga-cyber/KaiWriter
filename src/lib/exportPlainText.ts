@@ -10,6 +10,7 @@ export function lexicalToPlainText(editorStateJson: unknown): string {
   const walk = (node: SerializedNode): string => {
     if (node.type === 'text') return node.text ?? '';
     if (node.type === 'linebreak') return '\n';
+    if (node.type === 'tracked-delete') return ''; // pending deletion: not part of the current text
     if (node.type === 'paragraph' || node.type === 'heading' || node.type === 'listitem') {
       return `${(node.children ?? []).map(walk).join('')}\n`;
     }

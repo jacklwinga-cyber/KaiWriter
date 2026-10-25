@@ -10,8 +10,11 @@ import {
 } from '../../../lib/recoveryStore';
 
 import { debounce, type DebouncedFn } from '../../../lib/debounce';
+import { DOCUMENT_UPDATED_EVENT, type DocumentUpdatedDetail } from '../../../lib/syncOutbox';
 
 const DEBOUNCE_MS = 800;
+/** Update tag for content loaded from another device, so it isn't saved back as a local edit. */
+const REMOTE_UPDATE_TAG = 'kaiwriter-remote-update';
 
 interface DocumentSavePluginProps {
   documentId: string;
@@ -44,6 +47,24 @@ export function DocumentSavePlugin({
   const isProRef = useRef(isPro);
   useEffect(() => { isProRef.current = isPro; }, [isPro]);
 
+  // Latest editor content not yet persisted to IDB; null when everything is saved.
+  // Recovery snapshots are only written while this is set, so a clean document
+  // never leaves a snapshot behind that would trigger a false recovery banner.
+  const unsavedContentRef = useRef<string | null>(null);
+
+  // Set when another device's version arrived while this editor had unsaved
+  // edits. The next save is then sent against the old cloud base, so the push
+  // detects the conflict and keeps both versions instead of overwriting one.
+  const divergedBaseRef = useRef<{ base: number | undefined } | null>(null);
+
+  // Content as last loaded or saved. Lexical fires a dirty update when the
+  // editor mounts even though nothing changed; saving that would bump
+  // lastModified on every open and upload stale content to the cloud.
+  const savedContentRef = useRef<string | null>(null);
+  useEffect(() => {
+    savedContentRef.current = JSON.stringify(editor.getEditorState().toJSON());
+  }, [editor, documentId]);
+
   // ── Register cloud sync status callback (P0-C3) ──
   // Connects documentStore's fire-and-forget cloud push to the UI sync indicator.
   // Cleaned up on unmount so stale callbacks can't update unmounted state.
@@ -62,13 +83,21 @@ export function DocumentSavePlugin({
       templateId,
       branding: brandingRef.current,
     };
+    if (divergedBaseRef.current) {
+      doc.cloudLastModified = divergedBaseRef.current.base;
+      divergedBaseRef.current = null;
+    }
     try {
       await saveDocument(doc);
       if (isProRef.current) {
         void maybeAutoSaveVersion(documentId, nameRef.current, content);
       }
-      // Clear crash-recovery snapshot — document is safely persisted
-      clearRecoverySnapshot(documentId);
+      savedContentRef.current = content;
+      // Clear crash-recovery snapshot once the latest edit is safely persisted
+      if (unsavedContentRef.current === content) {
+        unsavedContentRef.current = null;
+        clearRecoverySnapshot(documentId);
+      }
       setSaveStatus('saved');
     } catch (err) {
       console.error('[KaiWriter] autosave failed:', err);
@@ -85,25 +114,51 @@ export function DocumentSavePlugin({
     // queued edit now. Otherwise the stale timer fires later and saves the previous
     // document under the new document's name (nameRef has moved on by then).
     // Cleanups run before the nameRef effect updates, so the old name is still current.
-    return () => current.flushPending();
+    return () => {
+      current.flushPending();
+      unsavedContentRef.current = null;
+    };
   }, [persistFn]);
 
   // ── Register editor update listener ──
   useEffect(() => {
-    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves }) => {
+    return editor.registerUpdateListener(({ editorState, dirtyElements, dirtyLeaves, tags }) => {
       if (dirtyElements.size === 0 && dirtyLeaves.size === 0) return;
-      setSaveStatus('saving');
+      if (tags.has(REMOTE_UPDATE_TAG)) return;
       const content = JSON.stringify(editorState.toJSON());
+      if (unsavedContentRef.current === null && content === savedContentRef.current) return;
+      setSaveStatus('saving');
+      unsavedContentRef.current = content;
       debouncedPersist.current?.(content);
     });
   }, [editor, setSaveStatus]);
 
+  // ── Live updates from the user's other devices ──
+  useEffect(() => {
+    const onDocumentUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<DocumentUpdatedDetail>).detail;
+      if (detail.id !== documentId) return;
+      if (unsavedContentRef.current !== null) {
+        divergedBaseRef.current ??= { base: detail.previousBase };
+        return;
+      }
+      try {
+        editor.setEditorState(editor.parseEditorState(detail.content), { tag: REMOTE_UPDATE_TAG });
+        savedContentRef.current = JSON.stringify(editor.getEditorState().toJSON());
+      } catch (err) {
+        console.error('[KaiWriter] could not load the updated document:', err);
+      }
+    };
+    window.addEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+    return () => window.removeEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+  }, [editor, documentId]);
+
   // ── beforeunload: flush debounce immediately, write localStorage emergency backup ──
   useEffect(() => {
     const handleBeforeUnload = () => {
-      const state = editor.getEditorState();
-      const content = JSON.stringify(state.toJSON());
-      // Flush the debounced IDB write (best-effort async)
+      const content = unsavedContentRef.current;
+      if (content === null) return;
+      // Flush the queued (or previously failed) IDB write (best-effort async)
       debouncedPersist.current?.flush(content);
       // Synchronous localStorage backup survives crashes where async IDB may not
       saveRecoverySnapshot({
@@ -116,13 +171,13 @@ export function DocumentSavePlugin({
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [editor, documentId]);
+  }, [documentId]);
 
   // ── 30-second crash-recovery interval ──
   useEffect(() => {
     const interval = setInterval(() => {
-      const state = editor.getEditorState();
-      const content = JSON.stringify(state.toJSON());
+      const content = unsavedContentRef.current;
+      if (content === null) return;
       saveRecoverySnapshot({
         documentId,
         name: nameRef.current,
@@ -132,7 +187,7 @@ export function DocumentSavePlugin({
       });
     }, RECOVERY_INTERVAL_MS);
     return () => clearInterval(interval);
-  }, [editor, documentId]);
+  }, [documentId]);
 
   return null;
 }

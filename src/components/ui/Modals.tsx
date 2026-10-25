@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, User, Monitor, Moon, Sun, Sparkles, Check, History, Lock, RotateCcw, Palette, Mail, Cloud, FlaskConical } from 'lucide-react';
+import { X, User, Monitor, Moon, Sun, Sparkles, Check, History, Lock, RotateCcw, Trash2, Download, Palette, Mail, Cloud, FlaskConical } from 'lucide-react';
 import { useTheme } from '../../contexts/ThemeProvider';
 import type { ThemeMode } from '../../contexts/ThemeProvider';
 import { useAuth } from '../../contexts/AuthProvider';
 import { PRO_FEATURES, FREE_FEATURES, openBillingPortal } from '../../lib/stripe';
+import type { PageNumberPosition, PageSetup } from '../../lib/pageSetup';
 import {
   getLegacyPinProQaStatus,
   resetLegacyPinProQaState,
@@ -11,9 +12,26 @@ import {
   simulateLegacyPinProTrial,
   type LegacyPinProQaStatus,
 } from '../../lib/legacyPinPro';
-import { listVersions, saveVersion, type DocumentVersion } from '../../lib/versionStore';
+import {
+  AUTO_INTERVAL_MS,
+  deleteVersion,
+  deleteVersionsForDocument,
+  getRetention,
+  listVersions,
+  RETENTION_AGE_CHOICES,
+  RETENTION_VERSION_CHOICES,
+  saveVersion,
+  setRetention,
+  type DocumentVersion,
+  type HistoryRetention,
+} from '../../lib/versionStore';
 import type { DocumentBranding } from '../../lib/branding';
 import { DEFAULT_BRAND_COLOR } from '../../lib/branding';
+import { CONFIRM_PHRASE } from '../../../supabase/functions/_shared/accountCore';
+import { stopCloudSync } from '../../lib/cloudSync';
+
+/** Loaded on demand: the export reads every store, which the rest of this file doesn't need. */
+const loadAccountData = () => import('../../lib/accountData');
 
 interface ModalProps {
   isOpen: boolean;
@@ -173,7 +191,8 @@ export function ProfileModal({ isOpen, onClose, defaultView = 'main' }: ModalPro
     isSupabaseEnabled, accessToken, authError, clearAuthError, hasPinSetup, isCloudAccount,
     signInWithEmail, verifyEmailOtp, signInWithGoogle,
   } = useAuth();
-  const [view, setView] = useState<'main' | 'signin' | 'pin-create' | 'pin-unlock'>(defaultView === 'signin' ? 'signin' : 'main');
+  const [view, setView] = useState<'main' | 'signin' | 'pin-create' | 'pin-unlock' | 'delete-account'>(defaultView === 'signin' ? 'signin' : 'main');
+  const [dataMessage, setDataMessage] = useState<string | null>(null);
   const [displayName, setDisplayName] = useState('');
   const [pin, setPin] = useState('');
   const [confirmPin, setConfirmPin] = useState('');
@@ -194,6 +213,7 @@ export function ProfileModal({ isOpen, onClose, defaultView = 'main' }: ModalPro
       setOtpSent(false);
       setBillingError(null);
       setInfoMessage(null);
+      setDataMessage(null);
       return;
     }
     setView(defaultView === 'signin' ? 'signin' : 'main');
@@ -300,7 +320,19 @@ export function ProfileModal({ isOpen, onClose, defaultView = 'main' }: ModalPro
         </div>
 
         <div style={contentStyle}>
-          {view === 'signin' ? (
+          {view === 'delete-account' && user && isCloudAccount && accessToken ? (
+            <DeleteAccountPanel
+              userId={user.id}
+              email={user.email ?? null}
+              accessToken={accessToken}
+              onCancel={() => setView('main')}
+              onDeleted={(message) => {
+                void signOut().catch(() => undefined);
+                setDataMessage(message);
+                setView('main');
+              }}
+            />
+          ) : view === 'signin' ? (
             <>
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px', lineHeight: 1.5 }}>
                 Sign in for cloud sync, Pro trials, and billing. Your documents merge into this account automatically.
@@ -494,9 +526,24 @@ export function ProfileModal({ isOpen, onClose, defaultView = 'main' }: ModalPro
               <button type="button" style={actionBtnStyle} onClick={() => { void signOut(); onClose(); }}>
                 {isCloudAccount ? 'Sign out' : 'Clear profile'}
               </button>
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                <h3 style={{ ...settingTitleStyle, marginBottom: '8px' }}>Your data</h3>
+                <DownloadDataButton account={{ id: isCloudAccount ? user.id : null, email: user.email ?? null }} onMessage={setDataMessage} />
+                {isCloudAccount && accessToken && (
+                  <button
+                    type="button"
+                    style={{ ...actionBtnStyle, width: '100%', color: 'var(--accent-error)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+                    onClick={() => { setDataMessage(null); setView('delete-account'); }}
+                  >
+                    <Trash2 size={16} /> Delete account…
+                  </button>
+                )}
+                {dataMessage && <p role="status" style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '8px 0 0' }}>{dataMessage}</p>}
+              </div>
             </>
           ) : (
             <>
+              {dataMessage && <p role="status" style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>{dataMessage}</p>}
               <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px', lineHeight: 1.5 }}>
                 You&apos;re using KaiWriter as a guest. Documents stay on this device. Sign in when you want cloud sync or Pro.
               </p>
@@ -524,11 +571,127 @@ export function ProfileModal({ isOpen, onClose, defaultView = 'main' }: ModalPro
               <button type="button" style={{ ...actionBtnStyle, width: '100%' }} onClick={onClose}>
                 Continue as guest
               </button>
+              <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border-color)' }}>
+                <h3 style={{ ...settingTitleStyle, marginBottom: '8px' }}>Your data</h3>
+                <DownloadDataButton account={{ id: null, email: null }} onMessage={setDataMessage} />
+              </div>
             </>
           )}
         </div>
       </div>
     </div>
+  );
+}
+
+function DownloadDataButton({
+  account,
+  onMessage,
+}: {
+  account: { id: string | null; email: string | null };
+  onMessage: (message: string | null) => void;
+}) {
+  const [exporting, setExporting] = useState(false);
+  return (
+    <button
+      type="button"
+      disabled={exporting}
+      style={{ ...actionBtnStyle, width: '100%', marginBottom: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+      onClick={() => {
+        setExporting(true);
+        onMessage(null);
+        void loadAccountData()
+          .then((m) => m.downloadDataExport(account))
+          .then((n) => onMessage(`Downloaded ${n} document${n === 1 ? '' : 's'}, their history, folders, dictionary and settings.`))
+          .catch(() => onMessage('Could not build the download. Try again.'))
+          .finally(() => setExporting(false));
+      }}
+    >
+      <Download size={16} /> {exporting ? 'Preparing…' : 'Download my data (.json)'}
+    </button>
+  );
+}
+
+function DeleteAccountPanel({
+  userId,
+  email,
+  accessToken,
+  onCancel,
+  onDeleted,
+}: {
+  userId: string;
+  email: string | null;
+  accessToken: string;
+  onCancel: () => void;
+  onDeleted: (message: string) => void;
+}) {
+  const [typed, setTyped] = useState('');
+  const [clearDevice, setClearDevice] = useState(false);
+  const [working, setWorking] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setWorking(true);
+    setError(null);
+    try {
+      const { requestAccountDeletion } = await loadAccountData();
+      await requestAccountDeletion(accessToken, typed.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Your account could not be deleted. Nothing was removed.');
+      setWorking(false);
+      return;
+    }
+    // The cloud data is gone. Stop syncing before touching local data so nothing is re-sent.
+    stopCloudSync();
+    try {
+      const { clearLocalAccountData } = await loadAccountData();
+      await clearLocalAccountData(userId, { documents: clearDevice });
+    } catch {
+      // the account is already deleted; local leftovers can be removed by clearing site data
+    }
+    setWorking(false);
+    onDeleted(clearDevice
+      ? 'Your account and everything on this device were deleted.'
+      : 'Your account and its cloud data were deleted. Documents on this device were kept; they are no longer synced.');
+  };
+
+  return (
+    <>
+      <h3 style={{ ...settingTitleStyle, color: 'var(--accent-error)' }}>Delete account</h3>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.5, margin: '0 0 12px' }}>
+        This permanently deletes the account{email ? ` ${email}` : ''} and everything stored with it in the cloud:
+        documents, folders, comments, personal dictionary and AI usage. It can&apos;t be undone.
+        Download your data first if you want a copy.
+      </p>
+      <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5, margin: '0 0 12px' }}>
+        A Pro subscription must be cancelled first. Stripe keeps its own billing records as the law requires.
+      </p>
+      <label style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', fontSize: '0.9rem', margin: '0 0 12px' }}>
+        <input type="checkbox" checked={clearDevice} onChange={(e) => setClearDevice(e.target.checked)} />
+        <span>Also delete all documents, history and folders stored in this browser (including any made before signing in)</span>
+      </label>
+      <label htmlFor="delete-account-confirm" style={{ display: 'block', fontSize: '0.9rem', marginBottom: '6px' }}>
+        Type <strong>{CONFIRM_PHRASE}</strong> to confirm
+      </label>
+      <input
+        id="delete-account-confirm"
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        autoComplete="off"
+        style={{ ...inputStyle, marginBottom: '12px' }}
+      />
+      {error && <p role="alert" style={{ color: 'var(--accent-error)', fontSize: '0.85rem', margin: '0 0 12px' }}>{error}</p>}
+      <div style={{ display: 'flex', gap: '8px' }}>
+        <button type="button" style={{ ...actionBtnStyle, flex: 1 }} onClick={onCancel} disabled={working}>Cancel</button>
+        <button
+          type="button"
+          disabled={working || typed.trim() !== CONFIRM_PHRASE}
+          style={{ ...primaryBtnStyle, flex: 1, background: 'var(--accent-error)' }}
+          onClick={() => void handleDelete()}
+        >
+          {working ? 'Deleting…' : 'Delete account'}
+        </button>
+      </div>
+    </>
   );
 }
 
@@ -643,6 +806,9 @@ export function VersionHistoryModal({
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [retention, setRetentionState] = useState<HistoryRetention>(getRetention);
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
+  const autoMinutes = Math.round(AUTO_INTERVAL_MS / 60_000);
 
   useEffect(() => {
     if (!isOpen || !isPro) return;
@@ -662,6 +828,32 @@ export function VersionHistoryModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  const changeRetention = (next: HistoryRetention) => {
+    setRetentionState(next);
+    void (async () => {
+      const removed = await setRetention(next);
+      setVersions(await listVersions(documentId));
+      setHistoryNotice(removed ? `Deleted ${removed} older version${removed === 1 ? '' : 's'} on this device.` : 'Saved.');
+    })();
+  };
+
+  const handleDelete = (version: DocumentVersion) => {
+    if (!window.confirm(`Delete the version from ${new Date(version.createdAt).toLocaleString()}? This can't be undone.`)) return;
+    void (async () => {
+      await deleteVersion(version.id);
+      setVersions(await listVersions(documentId));
+    })();
+  };
+
+  const handleDeleteAll = () => {
+    if (!window.confirm(`Delete all ${versions.length} saved versions of "${documentName}" on this device? The document itself is kept.`)) return;
+    void (async () => {
+      await deleteVersionsForDocument(documentId);
+      setVersions([]);
+      setHistoryNotice('Deleted all versions of this document on this device.');
+    })();
   };
 
   const handleRestore = (version: DocumentVersion) => {
@@ -686,7 +878,7 @@ export function VersionHistoryModal({
           {!isPro ? (
             <>
               <p style={{ color: 'var(--text-secondary)', marginBottom: '16px' }}>
-                Version history is a Pro feature. Restore previous drafts and keep automatic snapshots every 15 minutes.
+                Version history is a Pro feature. Restore previous drafts and keep automatic snapshots every {autoMinutes} minutes.
               </p>
               <button type="button" style={{ ...primaryBtnStyle, display: 'flex', alignItems: 'center', gap: '8px', justifyContent: 'center' }} onClick={onRequestUpgrade}>
                 <Lock size={16} /> Upgrade to Pro
@@ -704,7 +896,11 @@ export function VersionHistoryModal({
               </button>
               {loading && <p style={{ color: 'var(--text-secondary)' }}>Loading versions…</p>}
               {!loading && versions.length === 0 && (
-                <p style={{ color: 'var(--text-secondary)' }}>No versions yet. Auto-snapshots save every 15 minutes while you edit.</p>
+                <p style={{ color: 'var(--text-secondary)' }}>
+                  {retention.autoSnapshots
+                    ? `No versions yet. Automatic snapshots are saved every ${autoMinutes} minutes while you edit.`
+                    : 'No versions yet. Automatic snapshots are off; use “Save current version”.'}
+                </p>
               )}
               <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
                 {versions.map((v) => (
@@ -724,16 +920,70 @@ export function VersionHistoryModal({
                         {new Date(v.createdAt).toLocaleString()} · {v.source === 'manual' ? 'Manual' : 'Auto'}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      style={{ ...actionBtnStyle, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                      onClick={() => handleRestore(v)}
-                    >
-                      <RotateCcw size={14} /> Restore
-                    </button>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        type="button"
+                        style={{ ...actionBtnStyle, padding: '6px 12px', display: 'flex', alignItems: 'center', gap: '6px' }}
+                        onClick={() => handleRestore(v)}
+                      >
+                        <RotateCcw size={14} /> Restore
+                      </button>
+                      <button
+                        type="button"
+                        aria-label={`Delete version from ${new Date(v.createdAt).toLocaleString()}`}
+                        style={{ ...actionBtnStyle, padding: '6px 8px', display: 'flex', alignItems: 'center' }}
+                        onClick={() => handleDelete(v)}
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </li>
                 ))}
               </ul>
+              <details style={{ marginTop: '16px', fontSize: '0.85rem' }}>
+                <summary style={{ cursor: 'pointer', fontWeight: 500 }}>History settings</summary>
+                <p style={{ color: 'var(--text-secondary)', margin: '8px 0' }}>
+                  Versions are stored only on this device. These settings apply to all your documents here.
+                </p>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  Keep up to
+                  <select
+                    value={retention.maxVersions}
+                    onChange={(e) => changeRetention({ ...retention, maxVersions: Number(e.target.value) })}
+                  >
+                    {RETENTION_VERSION_CHOICES.map((n) => <option key={n} value={n}>{n} versions per document</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  Delete automatic snapshots
+                  <select
+                    value={retention.maxAgeDays}
+                    onChange={(e) => changeRetention({ ...retention, maxAgeDays: Number(e.target.value) })}
+                  >
+                    {RETENTION_AGE_CHOICES.map((d) => <option key={d} value={d}>{d === 0 ? 'Never' : `After ${d} days`}</option>)}
+                  </select>
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', margin: '6px 0' }}>
+                  <input
+                    type="checkbox"
+                    checked={retention.autoSnapshots}
+                    onChange={(e) => changeRetention({ ...retention, autoSnapshots: e.target.checked })}
+                  />
+                  Take automatic snapshots every {autoMinutes} minutes while editing
+                </label>
+                <p style={{ color: 'var(--text-secondary)', margin: '6px 0' }}>
+                  Versions you save yourself are kept until you delete them or the version limit is reached.
+                </p>
+                <button
+                  type="button"
+                  disabled={versions.length === 0}
+                  style={{ ...actionBtnStyle, width: '100%', marginTop: '6px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px' }}
+                  onClick={handleDeleteAll}
+                >
+                  <Trash2 size={14} /> Delete all versions of this document
+                </button>
+                {historyNotice && <p role="status" style={{ color: 'var(--text-secondary)', margin: '8px 0 0' }}>{historyNotice}</p>}
+              </details>
             </>
           )}
         </div>
@@ -1066,6 +1316,73 @@ export function SignatureModal({ isOpen, onClose, onInsert }: ModalProps & { onI
               <button onClick={onClose} style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>Cancel</button>
               <button onClick={handleInsert} style={{ ...primaryBtnStyle, width: 'auto', padding: '8px 16px' }}>Insert</button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function HeaderFooterModal({
+  isOpen,
+  onClose,
+  pageSetup,
+  onSave,
+}: ModalProps & { pageSetup: PageSetup; onSave: (patch: Partial<PageSetup>) => void }) {
+  if (!isOpen) return null;
+  // Mounted fresh on each open so the form starts from the current settings.
+  return <HeaderFooterForm onClose={onClose} pageSetup={pageSetup} onSave={onSave} />;
+}
+
+function HeaderFooterForm({
+  onClose,
+  pageSetup,
+  onSave,
+}: { onClose: () => void; pageSetup: PageSetup; onSave: (patch: Partial<PageSetup>) => void }) {
+  const [headerText, setHeaderText] = useState(pageSetup.headerText ?? '');
+  const [footerText, setFooterText] = useState(pageSetup.footerText ?? '');
+  const [pageNumbers, setPageNumbers] = useState<PageNumberPosition>(pageSetup.pageNumbers);
+  const [differentFirstPage, setDifferentFirstPage] = useState(Boolean(pageSetup.differentFirstPage));
+
+  const handleSave = () => {
+    onSave({
+      headerText: headerText.trim() || undefined,
+      footerText: footerText.trim() || undefined,
+      pageNumbers,
+      differentFirstPage,
+    });
+    onClose();
+  };
+
+  return (
+    <div style={overlayStyle} onClick={onClose}>
+      <div style={{ ...modalStyle, width: '480px' }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Header and footer">
+        <div style={headerStyle}>
+          <h2 style={{ margin: 0, fontSize: '1.2rem' }}>Header &amp; Footer</h2>
+          <button type="button" onClick={onClose} style={closeBtnStyle} aria-label="Close"><X size={20} /></button>
+        </div>
+        <div style={contentStyle}>
+          <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px' }} htmlFor="kw-header-text">Header</label>
+          <input id="kw-header-text" style={inputStyle} value={headerText} onChange={(e) => setHeaderText(e.target.value)} placeholder="e.g. {title}" />
+          <label style={{ display: 'block', fontSize: '13px', margin: '16px 0 6px' }} htmlFor="kw-footer-text">Footer</label>
+          <input id="kw-footer-text" style={inputStyle} value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder="e.g. Confidential · {date}" />
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)', margin: '8px 0 0' }}>
+            Use {'{title}'}, {'{date}'}, {'{page}'} and {'{pages}'} to insert the document title, today's date and page numbers.
+          </p>
+          <label style={{ display: 'block', fontSize: '13px', margin: '16px 0 6px' }} htmlFor="kw-page-numbers">Page numbers</label>
+          <select id="kw-page-numbers" style={inputStyle} value={pageNumbers} onChange={(e) => setPageNumbers(e.target.value as PageNumberPosition)}>
+            <option value="none">None</option>
+            <option value="footer-center">Bottom of page, centered</option>
+            <option value="footer-right">Bottom of page, right</option>
+            <option value="header-right">Top of page, right</option>
+          </select>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', marginTop: '16px' }}>
+            <input type="checkbox" checked={differentFirstPage} onChange={(e) => setDifferentFirstPage(e.target.checked)} />
+            Different first page (no header, footer or number on page 1)
+          </label>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+            <button type="button" onClick={onClose} style={{ padding: '8px 16px', borderRadius: '4px', border: '1px solid var(--border-color)' }}>Cancel</button>
+            <button type="button" onClick={handleSave} style={{ ...primaryBtnStyle, width: 'auto', padding: '8px 16px' }}>Apply</button>
           </div>
         </div>
       </div>

@@ -9,13 +9,8 @@ import {
   exportFilename,
   lexicalToPlainText,
 } from '../lib/exportPlainText';
-import { ProUpgradeModal, VersionHistoryModal, BrandSettingsModal } from '../components/ui/Modals';
-import { HeadingNode, QuoteNode } from '@lexical/rich-text';
-import { TableCellNode, TableNode, TableRowNode } from '@lexical/table';
-import { ListItemNode, ListNode } from '@lexical/list';
-import { AutoLinkNode, LinkNode } from '@lexical/link';
-
-import { ImageNode } from '../components/editor/nodes/ImageNode';
+import { ProUpgradeModal, VersionHistoryModal, BrandSettingsModal, HeaderFooterModal } from '../components/ui/Modals';
+import { EDITOR_NODES } from '../components/editor/nodes/editorNodes';
 import { MainLayout } from '../components/layout/MainLayout';
 import { EditorCanvas } from '../components/editor/EditorCanvas';
 import { ToolbarPlugin } from '../components/editor/ToolbarPlugin';
@@ -24,10 +19,12 @@ import { FindReplacePlugin } from '../components/editor/plugins/FindReplacePlugi
 import { StatusBarPlugin } from '../components/editor/plugins/StatusBarPlugin';
 import { NavigationSidebarPlugin } from '../components/editor/plugins/NavigationSidebarPlugin';
 import { DocumentSavePlugin } from '../components/editor/plugins/DocumentSavePlugin';
+import { TrackChangesPlugin } from '../components/editor/plugins/TrackChangesPlugin';
+import { LiveProofreadPlugin } from '../components/editor/plugins/LiveProofreadPlugin';
 import { KeyboardShortcutsPlugin } from '../components/editor/plugins/KeyboardShortcutsPlugin';
 import { EditorChromeProvider, useEditorChrome } from '../contexts/EditorChromeContext';
 import { CommentsSidebarPlugin } from '../components/editor/plugins/CommentsSidebarPlugin';
-import { WritingAssistSidebarPlugin } from '../components/editor/plugins/WritingAssistSidebarPlugin';
+import { WritingAssistSidebarPlugin, type AssistTab } from '../components/editor/plugins/WritingAssistSidebarPlugin';
 import { BrandHeader } from '../components/editor/BrandHeader';
 import type { DocumentBranding } from '../lib/branding';
 import { getTemplateById, getTemplateContent } from '../data/templates';
@@ -40,8 +37,10 @@ import {
   requestTemplateAssist,
 } from '../lib/aiTemplateAssist';
 import { getPlainTextFromEditor } from '../lib/plainTextMap';
-import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName } from '../lib/documentStore';
+import { getDocument, migrateFromLocalStorage, saveDocument, updateDocumentName, updateDocumentPageSetup } from '../lib/documentStore';
 import editorStyles from '../components/editor/Editor.module.css';
+import { DOCUMENT_UPDATED_EVENT, type DocumentUpdatedDetail } from '../lib/syncOutbox';
+import { normalizePageSetup, pagePixels, type PageSetup } from '../lib/pageSetup';
 import {
   clearRecoverySnapshot,
   hasNewerRecovery,
@@ -74,10 +73,6 @@ const editorTheme = {
   image: editorStyles.image,
 };
 
-const EDITOR_NODES = [
-  HeadingNode, QuoteNode, ListNode, ListItemNode,
-  LinkNode, AutoLinkNode, TableNode, TableCellNode, TableRowNode, ImageNode,
-];
 
 function EditorWorkspace({
   documentId,
@@ -85,6 +80,7 @@ function EditorWorkspace({
   initialEditorState,
   initialName,
   initialBranding,
+  initialPageSetup,
   recoveryContent,
   recoveryName,
   onDismissRecovery,
@@ -94,6 +90,7 @@ function EditorWorkspace({
   initialEditorState?: string;
   initialName: string;
   initialBranding?: DocumentBranding;
+  initialPageSetup?: PageSetup;
   recoveryContent?: string | null;
   recoveryName?: string;
   onDismissRecovery?: () => void;
@@ -103,18 +100,21 @@ function EditorWorkspace({
   const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
   const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(false);
   const [isFocusMode, setIsFocusMode] = useState(false);
-  const [pageSize, setPageSize] = useState('Letter');
-  const [orientation, setOrientation] = useState('Portrait');
-  const [margins, setMargins] = useState('Normal');
+  const [pageSetup, setPageSetup] = useState<PageSetup>(() => normalizePageSetup(initialPageSetup));
+  const updatePageSetup = (patch: Partial<PageSetup>) => {
+    const next = normalizePageSetup({ ...pageSetup, ...patch });
+    setPageSetup(next);
+    void updateDocumentPageSetup(documentId, next);
+  };
+  const { pageSize, orientation, margins } = pageSetup;
+  const setPageSize = (value: string) => updatePageSetup({ pageSize: value as PageSetup['pageSize'] });
+  const setOrientation = (value: string) => updatePageSetup({ orientation: value as PageSetup['orientation'] });
+  const setMargins = (value: string) => updatePageSetup({ margins: value as PageSetup['margins'] });
 
-  const isLandscape = orientation === 'Landscape';
-  const widthInches = pageSize === 'A4' ? 8.27 : 8.5;
-  const heightInches = pageSize === 'A4' ? 11.69 : 11;
-  const actualWidth = isLandscape ? heightInches : widthInches;
-  const actualHeight = isLandscape ? widthInches : heightInches;
-  const pageWidth = `${actualWidth * 96}px`;
-  const pageHeight = `${actualHeight * 96}px`;
-  const pagePadding = margins === 'Narrow' ? '48px' : margins === 'Wide' ? '144px' : '96px';
+  const pagePx = pagePixels(pageSetup);
+  const pageWidth = `${pagePx.width}px`;
+  const pageHeight = `${pagePx.height}px`;
+  const pagePadding = `${pagePx.margin}px`;
 
   const initialConfig = useMemo(() => ({
     namespace: 'KaiWriter',
@@ -128,6 +128,18 @@ function EditorWorkspace({
     setDocumentName(newName);
     void updateDocumentName(documentId, newName);
   };
+
+  // A rename on another device arrives with the pulled document.
+  useEffect(() => {
+    const onDocumentUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<DocumentUpdatedDetail>).detail;
+      if (detail.id !== documentId) return;
+      setDocumentName(detail.name);
+      setPageSetup(normalizePageSetup(detail.pageSetup));
+    };
+    window.addEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+    return () => window.removeEventListener(DOCUMENT_UPDATED_EVENT, onDocumentUpdated);
+  }, [documentId]);
 
   return (
     <EditorPreferencesProvider>
@@ -155,6 +167,8 @@ function EditorWorkspace({
           pageWidth={pageWidth}
           pageHeight={pageHeight}
           pagePadding={pagePadding}
+          pageSetup={pageSetup}
+          onPageSetupChange={updatePageSetup}
           initialBranding={initialBranding}
           recoveryContent={recoveryContent}
           recoveryName={recoveryName}
@@ -170,8 +184,8 @@ function EditorLayout({
   activeTab, onTabChange, documentName, onNameChange, documentId, templateId,
   pageSize, setPageSize, orientation, setOrientation, margins, setMargins,
   isLeftSidebarOpen, setIsLeftSidebarOpen, isRightSidebarOpen, setIsRightSidebarOpen,
-  isFocusMode, setIsFocusMode, pageWidth, pageHeight, pagePadding, initialBranding,
-  recoveryContent, recoveryName, onDismissRecovery,
+  isFocusMode, setIsFocusMode, pageWidth, pageHeight, pagePadding, pageSetup, onPageSetupChange,
+  initialBranding, recoveryContent, recoveryName, onDismissRecovery,
 }: {
   activeTab: string;
   onTabChange: (tab: string) => void;
@@ -194,19 +208,41 @@ function EditorLayout({
   pageWidth: string;
   pageHeight: string;
   pagePadding: string;
+  pageSetup: PageSetup;
+  onPageSetupChange: (patch: Partial<PageSetup>) => void;
   initialBranding?: DocumentBranding;
   recoveryContent?: string | null;
   recoveryName?: string;
   onDismissRecovery?: () => void;
 }) {
   const [editor] = useLexicalComposerContext();
-  const { isPro, accessToken } = useAuth();
-  const { zoom, viewMode } = useEditorPreferences();
+  const { isPro, accessToken, user } = useAuth();
+  const { zoom, viewMode, liveProofreading, setLiveProofreading, disableSpellCheck, languageToolCode } = useEditorPreferences();
   const { canUndo, canRedo, undo, redo, saveStatus, setSaveStatus, syncStatus } = useEditorChrome();
   const [isSearchOpen, , closeSearch] = useSearchPalette();
   const [isUpgradeOpen, setIsUpgradeOpen] = useState(false);
   const [isVersionHistoryOpen, setIsVersionHistoryOpen] = useState(false);
   const [isBrandSettingsOpen, setIsBrandSettingsOpen] = useState(false);
+  const [isHeaderFooterOpen, setIsHeaderFooterOpen] = useState(false);
+  const trackChangesKey = `kaiwriter-track-changes:${documentId}`;
+  const [trackChanges, setTrackChanges] = useState(() => {
+    try {
+      return localStorage.getItem(trackChangesKey) === '1';
+    } catch {
+      return false;
+    }
+  });
+  const [changeCount, setChangeCount] = useState(0);
+  const toggleTrackChanges = () => {
+    const next = !trackChanges;
+    setTrackChanges(next);
+    try {
+      if (next) localStorage.setItem(trackChangesKey, '1');
+      else localStorage.removeItem(trackChangesKey);
+    } catch {
+      // per-device preference only
+    }
+  };
   const [isKaiAssistOpen, setIsKaiAssistOpen] = useState(false);
   const [showAssistBanner, setShowAssistBanner] = useState(true);
   const [placeholderCount, setPlaceholderCount] = useState(0);
@@ -214,10 +250,10 @@ function EditorLayout({
   const templateMeta = templateId ? getTemplateById(templateId) : undefined;
   const [leftPane, setLeftPane] = useState<'navigation' | 'comments' | 'writing'>('navigation');
   const [writingAssistSession, setWritingAssistSession] = useState(0);
-  const [writingAssistTab, setWritingAssistTab] = useState<'grammar' | 'suggestions'>('grammar');
+  const [writingAssistTab, setWritingAssistTab] = useState<AssistTab>('grammar');
   const [writingAssistAutoRun, setWritingAssistAutoRun] = useState(false);
 
-  const openWritingAssist = (tab: 'grammar' | 'suggestions', autoRun = true) => {
+  const openWritingAssist = (tab: AssistTab, autoRun = true) => {
     setWritingAssistTab(tab);
     setWritingAssistAutoRun(autoRun);
     setWritingAssistSession((n) => n + 1);
@@ -277,7 +313,7 @@ function EditorLayout({
     }
     const { lexicalToDocxBlob } = await import('../lib/exportDocx');
     const json = editor.getEditorState().toJSON();
-    const blob = await lexicalToDocxBlob(json, documentName, branding);
+    const blob = await lexicalToDocxBlob(json, documentName, branding, pageSetup);
     downloadBlob(blob, exportFilename(documentName, 'docx'));
   };
 
@@ -286,8 +322,19 @@ function EditorLayout({
     downloadText(lexicalToPlainText(json), exportFilename(documentName, 'txt'));
   };
 
-  const handleExportPdf = () => {
-    window.print();
+  const handleExportPdf = async () => {
+    setSaveStatus('saving');
+    try {
+      const { lexicalToPdfBlob } = await import('../lib/exportPdf');
+      const json = editor.getEditorState().toJSON();
+      const blob = await lexicalToPdfBlob(json, documentName, branding, pageSetup);
+      downloadBlob(blob, exportFilename(documentName, 'pdf'));
+    } catch (err) {
+      console.error('[KaiWriter] PDF export failed:', err);
+      window.alert('Sorry, the PDF could not be created. Try File ▸ Print and choose "Save as PDF" instead.');
+    } finally {
+      setSaveStatus('saved');
+    }
   };
 
   const handleRestoreFromCrash = () => {
@@ -324,6 +371,8 @@ function EditorLayout({
         key={writingAssistSession}
         initialTab={writingAssistTab}
         autoRun={writingAssistAutoRun}
+        trackChanges={trackChanges}
+        author={user?.displayName || 'Guest'}
         onClose={() => setIsLeftSidebarOpen(false)}
       />
     ) : (
@@ -347,7 +396,7 @@ function EditorLayout({
         isPro={isPro}
         onExportDocx={() => void handleExportDocx()}
         onExportTxt={handleExportTxt}
-        onExportPdf={handleExportPdf}
+        onExportPdf={() => void handleExportPdf()}
         onRequestUpgrade={() => setIsUpgradeOpen(true)}
         onOpenVersionHistory={() => setIsVersionHistoryOpen(true)}
         toolbar={
@@ -370,8 +419,15 @@ function EditorLayout({
             }}
             onOpenProofread={() => openWritingAssist('grammar', true)}
             onOpenWritingSuggestions={() => openWritingAssist('suggestions', true)}
+            onOpenRewrite={() => openWritingAssist('rewrite', false)}
             onOpenKaiAssist={() => setIsKaiAssistOpen(true)}
             onOpenBranding={() => setIsBrandSettingsOpen(true)}
+            onOpenHeaderFooter={() => setIsHeaderFooterOpen(true)}
+            trackChanges={trackChanges}
+            onToggleTrackChanges={toggleTrackChanges}
+            changeCount={changeCount}
+            liveProofreading={liveProofreading}
+            onToggleLiveProofreading={() => setLiveProofreading(!liveProofreading)}
             isPro={isPro}
             onRequestUpgrade={() => setIsUpgradeOpen(true)}
             isFocusMode={isFocusMode}
@@ -432,15 +488,31 @@ function EditorLayout({
             data-page-stack
           >
             <BrandHeader branding={branding} />
-            <EditorCanvas />
+            <EditorCanvas pageSetup={pageSetup} title={documentName} />
           </div>
         </div>
         <SearchPalette isOpen={isSearchOpen} onClose={closeSearch} />
       </MainLayout>
       <DocumentSavePlugin documentId={documentId} documentName={documentName} templateId={templateId} isPro={isPro} branding={branding} />
+      <TrackChangesPlugin enabled={trackChanges} author={user?.displayName || 'Guest'} onChangeCount={setChangeCount} />
+      <LiveProofreadPlugin
+        // Paused while the Review panel shows its own (fuller) results.
+        enabled={liveProofreading && !disableSpellCheck && !(leftPane === 'writing' && isLeftSidebarOpen && !isFocusMode)}
+        languageCode={languageToolCode}
+        userId={user?.id ?? null}
+      />
       <FindReplacePlugin />
-      <KeyboardShortcutsPlugin />
+      <KeyboardShortcutsPlugin
+        onProofread={() => openWritingAssist('grammar', true)}
+        onRewrite={() => openWritingAssist('rewrite', false)}
+      />
       <ProUpgradeModal isOpen={isUpgradeOpen} onClose={() => setIsUpgradeOpen(false)} />
+      <HeaderFooterModal
+        isOpen={isHeaderFooterOpen}
+        onClose={() => setIsHeaderFooterOpen(false)}
+        pageSetup={pageSetup}
+        onSave={onPageSetupChange}
+      />
       <VersionHistoryModal
         isOpen={isVersionHistoryOpen}
         onClose={() => setIsVersionHistoryOpen(false)}
@@ -487,6 +559,7 @@ export function EditorView() {
   const [initialEditorState, setInitialEditorState] = useState<string | undefined>();
   const [initialName, setInitialName] = useState('Untitled Document');
   const [initialBranding, setInitialBranding] = useState<DocumentBranding | undefined>();
+  const [initialPageSetup, setInitialPageSetup] = useState<PageSetup | undefined>();
   const [recoveryContent, setRecoveryContent] = useState<string | null>(null);
   const [recoveryName, setRecoveryName] = useState<string>('');
 
@@ -503,6 +576,7 @@ export function EditorView() {
         await mergeCommentsFromCloud(user.id, id);
       }
 
+      setInitialPageSetup(saved?.pageSetup);
       if (saved?.content) {
         setInitialEditorState(saved.content);
         setInitialName(saved.name);
@@ -526,7 +600,7 @@ export function EditorView() {
       const lastSaved = saved?.lastModified ?? 0;
       if (hasNewerRecovery(id, lastSaved)) {
         const snap = loadRecoverySnapshot(id);
-        if (snap) {
+        if (snap && snap.content !== saved?.content) {
           setRecoveryContent(snap.content);
           setRecoveryName(snap.name);
         }
@@ -559,6 +633,7 @@ export function EditorView() {
       initialEditorState={initialEditorState}
       initialName={initialName}
       initialBranding={initialBranding}
+      initialPageSetup={initialPageSetup}
       recoveryContent={recoveryContent}
       recoveryName={recoveryName}
       onDismissRecovery={handleDismissRecovery}

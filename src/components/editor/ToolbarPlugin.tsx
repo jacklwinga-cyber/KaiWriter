@@ -17,8 +17,15 @@ export interface ToolbarPluginProps {
   onOpenComments?: () => void;
   onOpenProofread?: () => void;
   onOpenWritingSuggestions?: () => void;
+  onOpenRewrite?: () => void;
   onOpenKaiAssist?: () => void;
   onOpenBranding?: () => void;
+  onOpenHeaderFooter?: () => void;
+  trackChanges?: boolean;
+  onToggleTrackChanges?: () => void;
+  changeCount?: number;
+  liveProofreading?: boolean;
+  onToggleLiveProofreading?: () => void;
   isPro?: boolean;
   onRequestUpgrade?: () => void;
   isFocusMode?: boolean;
@@ -38,8 +45,15 @@ export function ToolbarPlugin({
   onOpenComments,
   onOpenProofread,
   onOpenWritingSuggestions,
+  onOpenRewrite,
   onOpenKaiAssist,
   onOpenBranding,
+  onOpenHeaderFooter,
+  trackChanges,
+  onToggleTrackChanges,
+  changeCount,
+  liveProofreading,
+  onToggleLiveProofreading,
   isPro,
   onRequestUpgrade,
   isFocusMode,
@@ -47,7 +61,7 @@ export function ToolbarPlugin({
 }: ToolbarPluginProps) {
   switch (activeTab) {
     case 'Insert':
-      return <InsertRibbon />;
+      return <InsertRibbon onOpenHeaderFooter={onOpenHeaderFooter} />;
     case 'Layout':
       return (
         <LayoutRibbon
@@ -67,7 +81,13 @@ export function ToolbarPlugin({
         <ReviewRibbon
           onProofread={onOpenProofread}
           onWritingSuggestions={onOpenWritingSuggestions}
+          onRewrite={onOpenRewrite}
           onKaiAssist={onOpenKaiAssist}
+          trackChanges={trackChanges}
+          onToggleTrackChanges={onToggleTrackChanges}
+          changeCount={changeCount}
+          liveProofreading={liveProofreading}
+          onToggleLiveProofreading={onToggleLiveProofreading}
         />
       );
     case 'View':

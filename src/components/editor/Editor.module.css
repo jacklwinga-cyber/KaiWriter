@@ -342,3 +342,171 @@
   padding: 1px 5px;
   font-size: 0.9em;
 }
+
+/* ── Page breaks and page guides ─────────────────────────────────────────── */
+
+.pageBreak {
+  position: relative;
+  margin: 24px calc(-1 * var(--page-padding, 96px));
+  border-top: 1px dashed var(--border-color);
+  border-bottom: 1px dashed var(--border-color);
+  height: 14px;
+  background: var(--bg-app, rgba(127, 127, 127, 0.08));
+  cursor: pointer;
+  user-select: none;
+}
+
+.pageBreak span {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 0 8px;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  background: var(--bg-paper);
+  border-radius: 3px;
+}
+
+.pageBreakSelected {
+  outline: 2px solid var(--brand-primary);
+}
+
+.paginationLayer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.pageGuide {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--border-color);
+}
+
+.pageGuideLabel {
+  position: absolute;
+  right: 8px;
+  top: -9px;
+  padding: 1px 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-paper);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+}
+
+.pageHeaderPreview,
+.pageFooterPreview {
+  position: absolute;
+  left: var(--margin);
+  right: var(--margin);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.pageHeaderPreview {
+  top: calc(var(--margin) / 2 - 8px);
+}
+
+.pageFooterPreview {
+  bottom: calc(var(--margin) / 2 - 8px);
+}
+
+@media print {
+  .paginationLayer,
+  .pageBreak span {
+    display: none;
+  }
+  .pageBreak {
+    border: none;
+    height: 0;
+    margin: 0;
+    break-after: page;
+  }
+}
+
+/* ── Track changes ────────────────────────────────────────────────────────── */
+
+:global(.kw-tracked-insert) {
+  color: #1a7f37;
+  text-decoration: underline;
+  text-decoration-color: #1a7f37;
+  background: rgba(26, 127, 55, 0.08);
+}
+
+:global(.kw-tracked-delete) {
+  color: #c62828;
+  text-decoration: line-through;
+  text-decoration-color: #c62828;
+}
+
+:global(.dark-theme) :global(.kw-tracked-insert) {
+  color: #5fd38a;
+  text-decoration-color: #5fd38a;
+  background: rgba(95, 211, 138, 0.1);
+}
+
+:global(.dark-theme) :global(.kw-tracked-delete) {
+  color: #ff8a80;
+  text-decoration-color: #ff8a80;
+}
+
+/* ── Live proofreading card ───────────────────────────────────────────────── */
+
+.liveCard {
+  position: fixed;
+  z-index: 1200;
+  width: 280px;
+  padding: 10px 12px;
+  background: var(--bg-surface);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: var(--shadow-dropdown);
+  font-size: 12px;
+}
+
+.liveCardHeader {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.liveCardHeader button {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 0;
+}
+
+.liveCardActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.liveCardActions button {
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.liveCardActions .liveCardFix {
+  border-color: var(--brand-primary);
+  color: var(--brand-primary);
+  font-weight: 600;
+}

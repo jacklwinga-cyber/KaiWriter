@@ -1,7 +1,7 @@
 import { Link, useNavigate } from 'react-router-dom';
 import {
   FileText, Plus, Search, Settings, User, Sparkles, Trash2, Pin, Lock, Pencil, LayoutGrid, FolderPlus, Folder, FolderOpen, Check,
-  Briefcase, GraduationCap, Building2, Home, Clock, FilePlus,
+  Briefcase, GraduationCap, Building2, Home, Clock, FilePlus, FileUp,
   Calculator, Shield, Megaphone, Palette, ClipboardList,
 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -18,6 +18,8 @@ import { TemplateDetailPanel } from '../components/templates/TemplateDetailPanel
 import { TemplatePreviewModal } from '../components/templates/TemplatePreviewModal';
 import { countDocuments, trashDocument, listDocuments, listTrashedDocuments, permanentlyDeleteDocument, restoreDocument, migrateFromLocalStorage, saveDocument, toggleDocumentPin, updateDocumentName, type StoredDocument } from '../lib/documentStore';
 import { createDocumentId } from '../lib/ids';
+import { LIBRARY_CHANGED_EVENT } from '../lib/syncOutbox';
+import { useOpenDocumentFile } from '../hooks/useOpenDocumentFile';
 import {
   createFolder,
   listFolders,
@@ -114,6 +116,26 @@ export function DashboardView() {
     })();
   }, []);
 
+  // Reload the library when changes from the user's other devices are pulled from the cloud.
+  useEffect(() => {
+    const reload = async () => {
+      const [active, trashed, allFolders, counts] = await Promise.all([
+        listDocuments(),
+        listTrashedDocuments(),
+        listFolders(),
+        countDocumentsPerFolder(),
+      ]);
+      setRecentDocs(active);
+      setTrashedDocs(trashed);
+      setFolders(allFolders);
+      setFolderDocCounts(counts);
+      if (activeFolderId) setFolderDocs(await listDocumentsInFolder(activeFolderId));
+    };
+    const onLibraryChanged = () => { void reload(); };
+    window.addEventListener(LIBRARY_CHANGED_EVENT, onLibraryChanged);
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, onLibraryChanged);
+  }, [activeFolderId]);
+
   const openAccount = (view: 'main' | 'signin' = 'main') => {
     setProfileDefaultView(view);
     setIsProfileOpen(true);
@@ -133,6 +155,8 @@ export function DashboardView() {
     }
     return true;
   };
+
+  const openFile = useOpenDocumentFile(ensureCanCreateDoc);
 
   const handleCreate = async () => {
     if (!(await ensureCanCreateDoc())) return;
@@ -419,6 +443,17 @@ export function DashboardView() {
             <FilePlus size={22} />
             New
           </button>
+          <button
+            type="button"
+            className={styles.sidebarBtn}
+            onClick={() => void openFile.open()}
+            disabled={openFile.busy}
+            title="Open a Word (.docx), text or HTML file"
+          >
+            <FileUp size={22} />
+            {openFile.busy ? 'Opening…' : 'Open'}
+          </button>
+          {openFile.input}
           <button
             type="button"
             className={`${styles.sidebarBtn} ${activeView === 'recents' ? styles.sidebarBtnActive : ''}`}

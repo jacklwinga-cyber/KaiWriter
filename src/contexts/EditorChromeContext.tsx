@@ -29,6 +29,9 @@ interface EditorChromeContextValue {
   redo: () => void;
   setSaveStatus: (status: SaveStatus) => void;
   setSyncStatus: (status: SyncStatus) => void;
+  /** Page layout as measured by PaginationPlugin. */
+  pageInfo: { current: number; total: number };
+  setPageInfo: (info: { current: number; total: number }) => void;
 }
 
 const EditorChromeContext = createContext<EditorChromeContextValue | null>(null);
@@ -38,6 +41,10 @@ export function EditorChromeProvider({ children }: { children: React.ReactNode }
   const [canRedo, setCanRedo] = useState(false);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [syncStatus, setSyncStatus] = useState<SyncStatus>('disabled');
+  const [pageInfo, setPageInfoState] = useState({ current: 1, total: 1 });
+  const setPageInfo = useCallback((info: { current: number; total: number }) => {
+    setPageInfoState((prev) => (prev.current === info.current && prev.total === info.total ? prev : info));
+  }, []);
   const [editorRef, setEditorRef] = useState<ReturnType<typeof useLexicalComposerContext>[0] | null>(null);
 
   const undo = useCallback(() => {
@@ -49,7 +56,7 @@ export function EditorChromeProvider({ children }: { children: React.ReactNode }
   }, [editorRef]);
 
   return (
-    <EditorChromeContext.Provider value={{ canUndo, canRedo, saveStatus, syncStatus, undo, redo, setSaveStatus, setSyncStatus }}>
+    <EditorChromeContext.Provider value={{ canUndo, canRedo, saveStatus, syncStatus, undo, redo, setSaveStatus, setSyncStatus, pageInfo, setPageInfo }}>
       <EditorChromeRegistrar
         onEditor={(editor) => setEditorRef(editor)}
         onCanUndoChange={setCanUndo}
