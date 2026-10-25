@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
-import { $getSelection, $isRangeSelection, $isTextNode } from 'lexical';
 import {
-  CheckCircle2, Loader2, SpellCheck, Lightbulb, X, ChevronRight, RefreshCw,
+  CheckCircle2, Loader2, SpellCheck, Lightbulb, X, ChevronRight, RefreshCw, CheckCheck, Info,
 } from 'lucide-react';
 import styles from '../../layout/MainLayout.module.css';
 import assistStyles from './WritingAssistSidebar.module.css';
@@ -11,16 +10,43 @@ import { useEditorPreferences } from '../../../contexts/EditorPreferencesContext
 import {
   analyzeWriting,
   countIssuesByKind,
+  describeSourceProblems,
   ISSUE_KIND_LABELS,
   type WritingIssue,
   type WritingIssueKind,
 } from '../../../lib/writingAssist';
 import {
   applyPlainTextEditInEditor,
+  applyPlainTextEditsInEditor,
   getPlainTextFromEditor,
-  getSelectedPlainText,
+  getSelectionPlainTextRange,
   selectPlainTextRangeInEditor,
 } from '../../../lib/plainTextMap';
+import { rebaseRanges, selectNonOverlapping } from '../../../lib/suggestionOffsets';
+
+/** Remembered choice about sending text to the online checkers (LanguageTool, Kai AI). */
+const ONLINE_CONSENT_KEY = 'kaiwriter-proofread-online-consent';
+type OnlineConsent = 'granted' | 'denied' | null;
+
+function readConsent(): OnlineConsent {
+  try {
+    const value = localStorage.getItem(ONLINE_CONSENT_KEY);
+    return value === 'granted' || value === 'denied' ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeConsent(value: 'granted' | 'denied') {
+  try {
+    localStorage.setItem(ONLINE_CONSENT_KEY, value);
+  } catch {
+    // remembered for this session only
+  }
+}
+
+const isGrammarKind = (issue: WritingIssue) =>
+  issue.kind === 'grammar' || issue.kind === 'spelling' || issue.kind === 'punctuation';
 
 type CheckScope = 'document' | 'selection';
 type AssistTab = 'grammar' | 'suggestions';
@@ -45,31 +71,52 @@ export function WritingAssistSidebarPlugin({
   const [dismissed, setDismissed] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notices, setNotices] = useState<string[]>([]);
   const [lastChecked, setLastChecked] = useState<number | null>(null);
+  const [consent, setConsent] = useState<OnlineConsent>(readConsent);
   const autoRan = useRef(false);
+  const inFlight = useRef<AbortController | null>(null);
+
+  // Cancel a running check when the panel closes.
+  useEffect(() => () => inFlight.current?.abort(), []);
 
   const visibleIssues = useMemo(() => {
     const filtered = issues.filter((issue) => !dismissed.has(issue.id));
-    if (tab === 'grammar') {
-      return filtered.filter((issue) =>
-        issue.kind === 'grammar' || issue.kind === 'spelling' || issue.kind === 'punctuation',
-      );
-    }
+    if (tab === 'grammar') return filtered.filter(isGrammarKind);
     return filtered.filter((issue) => issue.kind === 'style' || issue.kind === 'clarity' || issue.source === 'ai');
   }, [issues, dismissed, tab]);
 
   const counts = useMemo(() => countIssuesByKind(issues.filter((i) => !dismissed.has(i.id))), [issues, dismissed]);
 
-  const runCheck = useCallback(async (nextScope: CheckScope = scope, nextTab: AssistTab = tab) => {
+  const runCheck = useCallback(async (
+    nextScope: CheckScope = scope,
+    nextTab: AssistTab = tab,
+    allowRemote: boolean = consent === 'granted',
+  ) => {
+    inFlight.current?.abort();
+    const controller = new AbortController();
+    inFlight.current = controller;
     setLoading(true);
     setError(null);
+    setNotices([]);
     setScope(nextScope);
 
     try {
-      const text =
-        nextScope === 'selection'
-          ? getSelectedPlainText(editor)
-          : getPlainTextFromEditor(editor);
+      // Offsets are always relative to the whole document, so a check of a
+      // selection can be applied with the same code as a whole-document check.
+      const fullText = getPlainTextFromEditor(editor);
+      let base = 0;
+      let text = fullText;
+      if (nextScope === 'selection') {
+        const range = getSelectionPlainTextRange(editor);
+        if (!range) {
+          setIssues([]);
+          setError('Select some text to proofread.');
+          return;
+        }
+        base = range.start;
+        text = fullText.slice(range.start, range.end);
+      }
 
       if (!text.trim()) {
         setIssues([]);
@@ -77,21 +124,29 @@ export function WritingAssistSidebarPlugin({
         return;
       }
 
-      const results = await analyzeWriting(text, {
+      const { issues: found, sources } = await analyzeWriting(text, {
         includeSuggestions: nextTab === 'suggestions' || nextTab === 'grammar',
         accessToken,
         languageCode: languageToolCode,
         disabled: disableSpellCheck,
+        allowRemote,
+        signal: controller.signal,
       });
-      setIssues(results);
+      if (controller.signal.aborted) return;
+      setIssues(found.map((issue) => ({ ...issue, id: `${issue.id}@${base}`, offset: issue.offset + base })));
+      setNotices(describeSourceProblems(sources));
       setDismissed(new Set());
       setLastChecked(Date.now());
     } catch (err) {
+      if (controller.signal.aborted) return; // superseded by a newer check
       setError(err instanceof Error ? err.message : 'Could not run proofread.');
     } finally {
-      setLoading(false);
+      if (inFlight.current === controller) {
+        inFlight.current = null;
+        setLoading(false);
+      }
     }
-  }, [editor, scope, tab, accessToken, languageToolCode, disableSpellCheck]);
+  }, [editor, scope, tab, accessToken, languageToolCode, disableSpellCheck, consent]);
 
   useEffect(() => {
     if (!autoRun || autoRan.current) return;
@@ -99,30 +154,46 @@ export function WritingAssistSidebarPlugin({
     void runCheck('document', initialTab);
   }, [autoRun, initialTab, runCheck]);
 
+  const chooseConsent = (value: 'granted' | 'denied') => {
+    writeConsent(value);
+    setConsent(value);
+    if (value === 'granted') void runCheck(scope, tab, true);
+  };
+
+  const STALE_MESSAGE = 'That text has changed since it was checked. Run the check again to refresh suggestions.';
+
   const handleApply = (issue: WritingIssue, suggestion: string) => {
     const replacement = suggestion || issue.suggestions[0];
-    if (!replacement && issue.kind !== 'clarity') return;
+    if (!replacement) return;
 
-    if (scope === 'document') {
-      applyPlainTextEditInEditor(editor, issue.offset, issue.length, replacement);
-    } else {
-      editor.update(() => {
-        const selection = $getSelection();
-        if (!$isRangeSelection(selection)) return;
-        for (const node of selection.getNodes()) {
-          if (!$isTextNode(node)) continue;
-          const content = node.getTextContent();
-          const idx = content.indexOf(issue.original);
-          if (idx === -1) continue;
-          node.setTextContent(
-            `${content.slice(0, idx)}${replacement}${content.slice(idx + issue.original.length)}`,
-          );
-          return;
-        }
-      });
+    const applied = applyPlainTextEditInEditor(editor, issue.offset, issue.length, replacement, issue.original);
+    if (!applied) {
+      setError(STALE_MESSAGE);
+      setIssues((prev) => prev.filter((i) => i.id !== issue.id));
+      return;
     }
+    // Shift the remaining suggestions past the edit; drop any that overlapped it.
+    setIssues((prev) => rebaseRanges(prev.filter((i) => i.id !== issue.id), issue, replacement.length));
+  };
 
-    setIssues((prev) => prev.filter((i) => i.id !== issue.id));
+  const acceptAllCandidates = useMemo(
+    () => selectNonOverlapping(visibleIssues.filter((i) => isGrammarKind(i) && i.suggestions.length > 0)),
+    [visibleIssues],
+  );
+
+  const handleAcceptAll = () => {
+    const edits = acceptAllCandidates.map((issue) => ({ ...issue, replacement: issue.suggestions[0] }));
+    const applied = applyPlainTextEditsInEditor(editor, edits);
+    const appliedIds = new Set(applied.map((e) => e.id));
+    setIssues((prev) => {
+      // Rebase in document order, last edit first, so each shift uses pre-edit offsets.
+      let remaining = prev.filter((i) => !appliedIds.has(i.id));
+      for (const edit of [...applied].sort((a, b) => b.offset - a.offset)) {
+        remaining = rebaseRanges(remaining, edit, edit.replacement.length);
+      }
+      return remaining;
+    });
+    if (applied.length < edits.length) setError(STALE_MESSAGE);
   };
 
   const handleFocus = (issue: WritingIssue) => {
@@ -197,7 +268,36 @@ export function WritingAssistSidebarPlugin({
         </button>
       </div>
 
+      {consent === null && (
+        <div className={assistStyles.manualHint} role="note" style={{ display: 'block', margin: '8px 12px', lineHeight: 1.4 }}>
+          <p style={{ margin: '0 0 6px' }}>
+            <Info size={12} /> Grammar and spelling checks send the text you check to LanguageTool (languagetool.org);
+            AI suggestions send it to Kai AI. Offline checks never leave this device.
+          </p>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('granted')}>Allow online checks</button>
+            <button type="button" className={assistStyles.scopeBtn} onClick={() => chooseConsent('denied')}>Offline only</button>
+          </div>
+        </div>
+      )}
+
       {error && <p className={assistStyles.error}>{error}</p>}
+      {notices.map((notice) => (
+        <p key={notice} className={assistStyles.manualHint} style={{ margin: '4px 12px' }}>
+          <Info size={12} /> {notice}
+        </p>
+      ))}
+      {consent === 'denied' && (
+        <button type="button" className={assistStyles.scopeBtn} style={{ margin: '4px 12px' }} onClick={() => chooseConsent('granted')}>
+          Turn on online checks
+        </button>
+      )}
+
+      {tab === 'grammar' && acceptAllCandidates.length > 1 && (
+        <button type="button" className={assistStyles.runBtn} style={{ margin: '4px 12px' }} onClick={handleAcceptAll}>
+          <CheckCheck size={14} /> Accept all {acceptAllCandidates.length} fixes
+        </button>
+      )}
 
       {!loading && lastChecked && visibleIssues.length === 0 && !error && (
         <div className={assistStyles.emptyGood}>
